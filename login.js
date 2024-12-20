@@ -8,15 +8,15 @@ const Login = () => {
     email: "",
     password: "",
   });
-  const [loading, setLoading] = useState(false); // Handle loading state
+  const [loading, setLoading] = useState(false); 
   const navigate = useNavigate();
 
-  // Handle input field changes
+ 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle form submission
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -27,7 +27,7 @@ const Login = () => {
       if (response.status === 200) {
         alert("Login Successful!");
         console.log(response.data);
-        navigate(response.data.redirect); // Redirect based on role
+        navigate(response.data.redirect); 
       } else {
         alert(response.data.message || "Login failed!");
       }
