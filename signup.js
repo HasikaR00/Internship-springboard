@@ -13,26 +13,26 @@ const Signup = () => {
     password: "",
     confirmPassword: "",
   });
-  const [loading, setLoading] = useState(false); // Handle loading state
+  const [loading, setLoading] = useState(false); 
   const navigate = useNavigate();
 
-  // Handle input field changes
+  
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Password validation function
+  
   const validatePassword = (password) => {
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     return regex.test(password);
   };
 
-  // Handle form submission
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // Password validation
+   
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords do not match!");
       setLoading(false);
@@ -48,22 +48,22 @@ const Signup = () => {
     }
 
     try {
-      // Send POST request to the backend for signup
+      
       const response = await axios.post("http://127.0.0.1:5000/signup", {
         full_name: formData.full_name,
         email: formData.email,
         password: formData.password,
-        confirm_password: formData.confirmPassword,  // Note: Backend expects 'confirm_password'
+        confirm_password: formData.confirmPassword,  
         phone_number: formData.phone_number,
         country: formData.country,
-        role: activeRole, // Add selected role
+        role: activeRole, 
       });
 
-      // Check if signup was successful
+      
       if (response.status === 201) {
         alert("Signup Successful!");
         console.log(response.data);
-        navigate("/login"); // Redirect to Login page after successful signup
+        navigate("/login"); 
       } else {
         alert(response.data.message || "Signup failed!");
       }
