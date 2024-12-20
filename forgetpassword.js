@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import "./styles.css";
 const ForgetPassword = () => {
-  const [step, setStep] = useState(1); // Step 1: Enter email, Step 2: Enter OTP and reset password
+  const [step, setStep] = useState(1); 
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -19,7 +19,7 @@ const ForgetPassword = () => {
         email,
       });
       setMessage(response.data.message);
-      setStep(2); // Move to the next step
+      setStep(2); 
     } catch (err) {
       setError(err.response?.data?.error || "An error occurred.");
     }
@@ -42,7 +42,7 @@ const ForgetPassword = () => {
         confirm_new_password: confirmNewPassword,
       });
       setMessage(response.data.message);
-      setStep(1); // Reset back to initial step
+      setStep(1); 
     } catch (err) {
       setError(err.response?.data?.error || "An error occurred.");
     }
