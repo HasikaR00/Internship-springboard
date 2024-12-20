@@ -40,7 +40,7 @@ class PasswordReset(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_verified = db.Column(db.Boolean, default=False)
 
-# Helper Functions
+
 def validate_password(password):
     if len(password) < 8:
         return False
