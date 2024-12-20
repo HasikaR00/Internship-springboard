@@ -3,20 +3,20 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
-app = Flask(__name__)  # Corrected to __name__
+app = Flask(__name__)  
 
-# Define the directory for the database
+
 db_dir = 'D:/m'
 
-# If the directory doesn't exist, create it
+
 if not os.path.exists(db_dir):
     os.makedirs(db_dir)
 
-# Configure the SQLAlchemy URI
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(db_dir, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize the database
+
 db = SQLAlchemy(app)
 
 # Define the Role table
@@ -51,16 +51,16 @@ def initialize_database():
     Initialize the database and pre-populate roles if they don't exist.
     """
     with app.app_context():
-        # Create all tables in the database
+        
         db.create_all()
 
-        # Add default roles if not already present
+        
         roles = ['Learner', 'HR', 'Manager', 'Instructor']
         for role_name in roles:
             if not Role.query.filter_by(name=role_name).first():
                 db.session.add(Role(name=role_name))
 
-        # Commit the session to save roles to the database
+       
         try:
             db.session.commit()
             print("Database initialized successfully with roles and tables.")
