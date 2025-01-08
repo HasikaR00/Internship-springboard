@@ -1,0 +1,244 @@
+/* Global Styles */
+*
+{
+  background-color:transparent;
+}
+/* Dashboard Layout */
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  background-color: #800020;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  color: black;
+}
+
+.sidebar h3 {
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.sidebar ul {
+  list-style: none; /* Remove bullets */
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar li {
+  background-color: #ffa013; /* Button-like background */
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.sidebar li:hover {
+  background-color: #f6fa30; /* Change background color on hover */
+  color: black; /* Optional: Change text color on hover */
+  transform: scale(1.05); /* Optional: Add a slight zoom effect */
+}
+
+.main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Bar */
+.top-bar {
+  background: #ffa013;
+  color: white;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 20px;
+}
+
+.top-bar-item {
+  background-color: #ffa013;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.top-bar-item:hover {
+  background-color: #f6fa30;
+  color: black;
+}
+
+/* Actions Section */
+.actions-container {
+  background: white;
+  margin: 20px;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.action-item {
+  display: flex;
+  justify-content: space-between;
+  background: #e5fcc8;
+  padding: 15px;
+  border-radius: 8px;
+  width: 800px;
+}
+
+.action-item button {
+  background: #ffa013;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  width: 90px;
+  height: 70px;
+  border-radius: 3px;
+}
+
+.action-item button:hover {
+  background: #f6fa30;
+  color: black;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 400px;
+  text-align: center;
+}
+
+/* Form Styles */
+.course-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-input {
+  padding: 10px;
+  margin: 5px 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.submit-btn, .cancel-btn {
+  background-color: #ffa013;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  width: 45%;
+}
+
+.submit-btn:hover, .cancel-btn:hover {
+  background-color: #f6fa30;
+  color: black;
+}
+
+/* Course List */
+.course-list {
+  max-height: 800px;
+  overflow-y: auto;
+  margin-top: 20px;
+  max-width:800px;
+}
+
+.course-item {
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  background: #f9f9f9;
+}
+
+.course-item h3 {
+  margin: 0;
+}
+
+.course-item p {
+  margin: 5px 0;
+}
+
+/* Dropdown Styling for Manage Courses */
+.courses-container {
+  width: 100%;
+  max-width: 600px;
+  margin: auto;
+  overflow-y: auto;
+}
+
+.course-dropdown {
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.course-title {
+  width: 100%;
+  padding: 10px;
+  background-color: black;
+  border: none;
+  text-align: left;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.course-title:hover {
+  background-color: #eaeaea;
+}
+
+.course-details {
+  padding: 10px;
+  background-color: #fff;
+  border-top: 1px solid #ccc;
+}
+.courses-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
