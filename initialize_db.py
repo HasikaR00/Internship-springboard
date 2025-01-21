@@ -60,7 +60,7 @@ class Course(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     duration = db.Column(db.Integer, nullable=False)
-    youtube_link = db.Column(db.String(255), nullable=False)
+    progress = db.Column(db.Float, default=0.0) 
 
 class Enrollment(db.Model):
     __tablename__ = 'enrollments'
@@ -68,8 +68,53 @@ class Enrollment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
     progress = db.Column(db.Float, default=0.0)
+    module_progress = db.Column(db.JSON, default={})  # JSON to track progress per module
+    feedback = db.Column(db.Text, nullable=True) 
     user = db.relationship('User', backref=db.backref('enrollments', lazy=True))
     course = db.relationship('Course', backref=db.backref('enrollments', lazy=True))
+
+class Module(db.Model):
+    __tablename__ = 'modules'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    introduction = db.Column(db.Text, nullable=True)
+    points = db.Column(db.Text, nullable=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    youtube_link = db.Column(db.String(255), nullable=False)
+    pdf_link = db.Column(db.String(255), nullable=False)
+    course = db.relationship('Course', backref=db.backref('modules', lazy=True))
+class Quiz(db.Model):
+    __tablename__ = 'quizzes'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    module_id = db.Column(db.Integer, db.ForeignKey('modules.id'), nullable=False)
+    pass_score = db.Column(db.Integer, nullable=False)  # Minimum score to pass
+    module = db.relationship('Module', backref=db.backref('quizzes', lazy=True))
+    questions = db.relationship('Question', backref='quiz', lazy=True)
+
+class Question(db.Model):
+    __tablename__ = 'questions'
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    options = db.Column(db.JSON, nullable=False)
+    correct_answer = db.Column(db.String(100), nullable=False)
+
+class QuizAttempt(db.Model):
+    __tablename__ = 'quiz_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
+    correct_answers = db.Column(db.Integer, default=0)
+    incorrect_answers = db.Column(db.Integer, default=0)
+    unanswered_questions = db.Column(db.Integer, default=0)
+    total_score = db.Column(db.Float, default=0.0)  # Total score for the quiz
+    pass_status = db.Column(db.Boolean, default=False)  # Pass/Fail status
+    user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))
+    quiz = db.relationship('Quiz', backref=db.backref('attempts', lazy=True))
+
+
+
 
 def initialize_database():
     """
