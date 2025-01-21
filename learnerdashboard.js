@@ -1,8 +1,10 @@
 import React, { useState, useEffect,useCallback ,useRef} from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { Bar } from "react-chartjs-2"; // Import Bar component
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
 import "./hrdashboard.css";
-
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 const LearnerDashboard = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("");  // Determines the type of modal ('courses', 'enrolled', 'completed')
@@ -12,10 +14,16 @@ const LearnerDashboard = () => {
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [enrollForm, setEnrollForm] = useState({ name: "", email: "" });
   const [courseToEnroll, setCourseToEnroll] = useState(null);
-  
+  const [feedback, setFeedback] = useState([]);
   const [watchedProgress, setWatchedProgress] = useState(0);
+  const [quizCompletion, setQuizCompletion] = useState(0);
   const navigate = useNavigate();
   const token = localStorage.getItem("jwtToken");
+  const [progressOverview, setProgressOverview] = useState({
+    completedCourses: 0,
+    enrolledCourses: 0,
+    inProgressCourses: 0,
+  }); // State for bar graph data
   const youtubePlayerRef = useRef(null);
   const handleLogout = () => {
     localStorage.removeItem('jwtToken');
@@ -39,6 +47,8 @@ const LearnerDashboard = () => {
     })
       .then((response) => {
         if (response.data.courses && Array.isArray(response.data.courses)) {
+          console.log("Courses fetched:", response.data.courses);
+
           setCourses(response.data.courses);
         } else {
           alert("No courses found.");
@@ -56,9 +66,11 @@ const LearnerDashboard = () => {
     })
       .then((response) => {
         if (response.data.courses && Array.isArray(response.data.courses)) {
+          console.log("Courses fetched:", response.data.courses);
+
           setEnrolledCourses(response.data.courses.map(course => ({
             ...course,
-            progress: `${course.progress}%`,
+            progress: course.progress || 0, 
           })));
         } else {
           alert("No enrolled courses found.");
@@ -88,28 +100,67 @@ const LearnerDashboard = () => {
         alert("Error fetching completed courses.");
       });
   }, [token]);
-  const handleProgressUpdate = useCallback((courseId, progress) => {
-    axios.post(
-      `http://localhost:5000/update-progress`,
-      { course_id: courseId,   // match backend expected field
-        video_progress: progress },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-      .then((response) => {
-        alert(response.data.message);
-        fetchEnrolledCourses();
-      })
-      .catch((error) => {
-        console.error("Error updating progress:", error);
-        alert("Error updating progress.");
-      });
-  }, [token, fetchEnrolledCourses]);
+    // Update module progress
+    const updateModuleProgress = useCallback(
+      (moduleId, videoProgress, quizCompletion) => {
+        axios
+          .post(
+            "http://localhost:5000/update-module-progress",
+            {
+              module_id: moduleId,
+              video_progress: videoProgress,
+              quiz_completion: quizCompletion,
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          .then((response) => {
+            alert(response.data.message);
+            fetchEnrolledCourses();  // Refresh courses after progress update
+          })
+          .catch((error) => {
+            console.error("Error updating module progress:", error);
+            alert("Error updating module progress.");
+          });
+      },
+      [token, fetchEnrolledCourses]
+    );
+    const fetchProgressOverview = useCallback(() => {
+      axios
+        .get("http://localhost:5000/course-progress-overview", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((response) => {
+          setProgressOverview(response.data);
+        })
+        .catch((error) => {
+          console.error("Error fetching progress overview:", error);
+        });
+    }, [token]);
+    const fetchFeedback = useCallback(() => {
+      axios
+        .get("http://localhost:5000/fetch-feedback", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((response) => {
+          if (response.data && Array.isArray(response.data)) {
+            setFeedback(response.data);
+          } else {
+            alert("No feedback found.");
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching feedback:", error);
+          alert("Error fetching feedback.");
+        });
+    }, [token]);
 
   useEffect(() => {
     fetchCourses();
     fetchEnrolledCourses();
     fetchCompletedCourses();
-  }, [fetchCourses, fetchEnrolledCourses, fetchCompletedCourses]);
+    fetchFeedback();
+    fetchProgressOverview();
+  }, [fetchCourses, fetchEnrolledCourses, fetchCompletedCourses,fetchFeedback,fetchProgressOverview]);
 
   const toggleCourseDetails = (courseId) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
@@ -126,6 +177,7 @@ const LearnerDashboard = () => {
   const closeModal = () => {
     setShowModal(false);
     setModalType("");
+    
     setEnrollForm({ name: "", email: "" });
   };
 
@@ -154,41 +206,77 @@ const LearnerDashboard = () => {
       alert("Error enrolling in course.");
     });
   };
-  const handleYouTubeProgress = useCallback((event, courseId) => {
+  const handleYouTubeProgress = useCallback((event, moduleId) => {
     const progress = (event.target.getCurrentTime() / event.target.getDuration()) * 100;
     let updatedProgress = 0;
-  
+
     if (progress >= 0 && progress < 33) updatedProgress = 25;
     else if (progress >= 33 && progress < 66) updatedProgress = 50;
     else if (progress >= 66 && progress <= 100) updatedProgress = 70;
-  
+
     if (updatedProgress !== watchedProgress) {
       setWatchedProgress(updatedProgress);
-      handleProgressUpdate(courseId, updatedProgress);
+      updateModuleProgress(moduleId, updatedProgress, quizCompletion);
     }
-  }, [watchedProgress, handleProgressUpdate]);
-  
+  }, [watchedProgress, quizCompletion, updateModuleProgress]);
+
+  const handleQuizCompletion = (moduleId, completion) => {
+    setQuizCompletion(completion);
+    updateModuleProgress(moduleId, watchedProgress, completion);
+  };
+
   useEffect(() => {
-    if (modalType === "enrolled" && courseToEnroll?.youtubeLink) {
-      const videoId = courseToEnroll.youtubeLink.split("v=")[1];
-  
-      if (!window.YT) {
-        // Load YouTube API
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.body.appendChild(tag);
-      } else if (!youtubePlayerRef.current) {
-        // Initialize player
-        youtubePlayerRef.current = new window.YT.Player("youtube-player", {
-          videoId,
-          events: {
-            onStateChange: (event) =>
-              handleYouTubeProgress(event, courseToEnroll.id),
-          },
-        });
-      }
+    if (modalType === "enrolled" && courseToEnroll?.modules) {
+      courseToEnroll.modules.forEach((module) => {
+        const videoId = module.youtubeLink.split("v=")[1];
+
+        if (!window.YT) {
+          // Load YouTube API
+          const tag = document.createElement("script");
+          tag.src = "https://www.youtube.com/iframe_api";
+          document.body.appendChild(tag);
+        } else if (!youtubePlayerRef.current) {
+          // Initialize player
+          youtubePlayerRef.current = new window.YT.Player("youtube-player", {
+            videoId,
+            events: {
+              onStateChange: (event) => handleYouTubeProgress(event, module.id),
+            },
+          });
+        }
+      });
     }
   }, [modalType, courseToEnroll, handleYouTubeProgress]);
+  
+   const barData = {
+    labels: ["Completed Courses", "Enrolled Courses", "In-Progress Courses"],
+    datasets: [
+      {
+        label: "Course Progress Overview",
+        data: [
+          progressOverview.completedCourses,
+          progressOverview.enrolledCourses,
+          progressOverview.inProgressCourses,
+        ],
+        backgroundColor: ["#4CAF50", "#FFC107", "#2196F3"], // Different colors for bars
+      },
+    ],
+  };
+
+  // Options for the bar graph
+  const barOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top",
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
   
   return (
     <div className="dashboard-container">
@@ -223,7 +311,16 @@ const LearnerDashboard = () => {
               <h3>View Completed Courses</h3>
               <button onClick={() => openModal("completed")}>VIEW</button>
             </div>
+            <div className="action-item">
+              <h3>View Feedback</h3>
+              <button onClick={() => openModal("feedback")}>VIEW</button>
+            </div>
           </div>
+        {/* Render Bar Graph */}
+        <div className="bar-graph-container">
+          <h3>Your Course Progress</h3>
+          <Bar data={barData} options={barOptions} />
+        </div>  
         </div>
       </div>
 
@@ -246,27 +343,67 @@ const LearnerDashboard = () => {
           <p><strong>Start Date:</strong> {course.startDate}</p>
           <p><strong>Duration:</strong> {course.duration} weeks</p>
           {course.endDate && <p><strong>End Date:</strong> {course.endDate}</p>}
-          {course.youtubeLink &&   (
+          <p><strong>Progress:</strong> {course.progress}%</p>
+    <div className="progress-bar-container">
+      <div className="progress-bar" style={{ width: `${course.progress}%` }}>
+        {course.progress}%
+      </div>
+    </div>
+          {modalType === "courses" &&
+                        !enrolledCourses.some((e) => e.id === course.id) && (
+                          <button
+                            onClick={() => openModal("enroll", course)}
+                            className="enroll-button"
+                          >
+                            Enroll
+                          </button>
+                        )}
+                            {/* Displaying modules */}
+                            {course.modules?.map((module) => (
+                    <div key={module.moduleId} className="module-details">
+                      <h4>{module.title}</h4>
+                      <p><strong>Introduction:</strong> {module.introduction}</p>
+                      <p><strong>Learning Points:</strong> {module.points}</p>
+                      <p><strong>Progress:</strong> {module.progress}%</p>
+                      <div>
+                        {module.pdfLink && (
+                          <p>
+                            <strong>Material:</strong>{" "}
+                            <a href={module.pdfLink} target="_blank" rel="noopener noreferrer">
+                              Download PDF
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                      {/* YouTube Video Player */}
+                      {module.youtubeLink && (
                         <div>
-                          <strong>Video:</strong>
                           <div id="youtube-player"></div>
-                          <p><a href={course.youtubeLink} target="_blank" rel="noopener noreferrer">Watch on YouTube</a></p>
+                          <p>
+                            <a href={module.youtubeLink} target="_blank" rel="noopener noreferrer">
+                              Watch on YouTube
+                            </a>
+                          </p>
                         </div>
                       )}
-      
-          {modalType === 'enrolled' ? (
-            <>
-              <p><strong>Progress:</strong> {course.progress}</p>
-              <button onClick={() => handleProgressUpdate(course.id, watchedProgress)}>
-                Update Progress
-              </button>
-            </>
-          ) : (
-            <button onClick={() => openModal("enroll", course)}>Enroll</button>
-          )}
-        </div>
-      )}
-    </div>
+                       {/* "Take Quiz" Button */}
+                       {module.quizId && enrolledCourses.some((e) => e.id === course.id) && (
+      <button 
+        onClick={() => {
+          navigate(`/quiz/${module.quizId}`);
+          handleQuizCompletion(module.moduleId, 50);
+        }} 
+        className="take-quiz-button"
+      >
+        TAKE QUIZ
+      </button>
+    )}
+
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
                 ))
               ) : (
                 <p>No courses available.</p>
@@ -300,6 +437,28 @@ const LearnerDashboard = () => {
               />
               <button type="submit">Enroll</button>
             </form>
+            <button className="cancel-btn" onClick={closeModal}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Modal */}
+      {modalType === "feedback" && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Course Feedback</h2>
+            <div className="feedback-container">
+              {feedback.length > 0 ? (
+                feedback.map((item, index) => (
+                  <div key={index} className="feedback-item">
+                    <h3>{item.courseName}</h3>
+                    <p><strong>Feedback:</strong> {item.feedback}</p>
+                  </div>
+                ))
+              ) : (
+                <p>No feedback available.</p>
+              )}
+            </div>
             <button className="cancel-btn" onClick={closeModal}>Close</button>
           </div>
         </div>
