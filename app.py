@@ -116,6 +116,21 @@ class QuizAttempt(db.Model):
     user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))
     quiz = db.relationship('Quiz', backref=db.backref('attempts', lazy=True))
 
+class Team(db.Model):
+    __tablename__ = 'teams'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    manager = db.relationship('User', backref=db.backref('managed_teams', lazy=True))
+
+class TeamMember(db.Model):
+    __tablename__ = 'team_members'
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    team = db.relationship('Team', backref=db.backref('members', lazy=True))
+    user = db.relationship('User', backref=db.backref('team_memberships', lazy=True))
+
 
 
 
@@ -365,13 +380,22 @@ def login():
     )
     session['role'] = Role.query.get(role_id).name
     session['email'] = email
+    print({
+    "message": "Login successful",
+    "access_token": access_token,
+    "role_name": session['role'],
+    "user_id": user.id,  # Ensure this is correct
+    "redirect": f"/{role.name.lower()}dashboard"
+})
 
     return jsonify({
         "message": "Login successful",
         "access_token": access_token,
         "role_name": session['role'],
+        "user_id": user.id,
         "redirect": f"/{role.name.lower()}dashboard"
     }), 200
+    
 @app.route('/login', methods=['OPTIONS'])
 def login_options():
     return '', 204
@@ -998,7 +1022,10 @@ def calculate_course_progress(course_id, user_id):
         total_progress += progress
         count += 1
     
-    course_progress = (total_progress / count) if count > 0 else 0.0
+    if count == 1:
+        course_progress = total_progress
+    else:
+        course_progress = (total_progress / count) if count > 0 else 0.0
     enrollment.progress = course_progress
     db.session.commit()
 
@@ -1025,6 +1052,8 @@ def update_module_progress():
         if not enrollment:
             return jsonify({"error": "Enrollment not found"}), 404
 
+        video_progress = video_progress if video_progress is not None else 0
+        quiz_completion = quiz_completion if quiz_completion is not None else 0
         # Calculate module progress as a weighted average (50% video, 50% quizzes)
         module_progress = (video_progress * 0.5) + (quiz_completion * 0.5)
         module_progress_data = enrollment.module_progress or {}
@@ -1286,6 +1315,7 @@ def fetch_learners_progress():
             learner = enrollment.user
             if learner.id not in progress_data:
                 progress_data[learner.id] = {
+                    "id": learner.id,
                     "learnerName": learner.full_name,
                     "learnerEmail": learner.email,
                     "enrolledCourses": [],
@@ -1293,6 +1323,7 @@ def fetch_learners_progress():
 
             # Collect course progress
             progress_data[learner.id]["enrolledCourses"].append({
+                "id": enrollment.course.id, 
                 "courseName": enrollment.course.title,
                 "courseProgress": enrollment.progress,
                 "moduleProgress": enrollment.module_progress or {},
@@ -1412,6 +1443,238 @@ def course_progress_overview():
 
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+@app.route('/course-performance', methods=['GET'])
+@jwt_required()
+def course_performance():
+    try:
+        current_user_id = get_jwt_identity()
+
+        # Fetch enrollments
+        enrollments = Enrollment.query.filter_by(user_id=current_user_id).all()
+        if not enrollments:
+            return jsonify({"message": "No enrolled courses found."}), 404
+
+        course_performance_data = []
+        for enrollment in enrollments:
+            course = enrollment.course
+            progress = enrollment.progress
+            status = "Completed" if progress == 100 else "Active" if progress > 0 else "Not Started"
+
+            # Gather module-level data
+            module_progress_data = enrollment.module_progress or {}
+            total_modules = Module.query.filter_by(course_id=course.id).count()
+            completed_modules = sum(1 for _, progress in module_progress_data.items() if progress == 100)
+
+            # Gather quiz performance
+            total_points = 0
+            achieved_points = 0
+            quizzes = Quiz.query.join(Module).filter(Module.course_id == course.id).all()
+
+            for quiz in quizzes:
+                attempt = QuizAttempt.query.filter_by(user_id=current_user_id, quiz_id=quiz.id).first()
+                if attempt:
+                    total_points += quiz.pass_score
+                    achieved_points += attempt.correct_answers
+
+            course_performance_data.append({
+                "courseId": course.id,
+                "title": course.title,
+                "progress": progress,
+                "status": status,
+                "totalModules": total_modules,
+                "completedModules": completed_modules,
+                "totalPoints": total_points,
+                "achievedPoints": achieved_points
+            })
+
+        return jsonify({"coursePerformance": course_performance_data}), 200
+
+    except Exception as e:
+        logging.error(f"Error fetching course performance: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+#hr-routes
+@app.route('/teams', methods=['GET'])
+@jwt_required()
+def get_teams():
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "HR":
+        return jsonify({"error": "Access denied."}), 403
+
+    teams = Team.query.all()
+    result = []
+    for team in teams:
+        members = [
+            {"id": member.user.id, "name": member.user.full_name}
+            for member in team.members
+        ]
+        result.append({
+            "team_name": team.name,
+            "manager_name": team.manager.full_name,
+            "members": members
+        })
+
+    return jsonify(result), 200
+
+@app.route('/create-team', methods=['POST'])
+@jwt_required()
+def create_team():
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "HR":
+        return jsonify({"error": "Access denied."}), 403
+
+    data = request.get_json()
+    team_name = data.get("teamName")
+    manager_id = data.get("managerId")
+    member_ids = data.get("memberIds")
+
+    if not team_name or not manager_id or not member_ids:
+        return jsonify({"error": "All fields are required."}), 400
+
+    try:
+        team = Team(name=team_name, manager_id=manager_id)
+        db.session.add(team)
+        db.session.flush()
+
+        for member_id in member_ids:
+            team_member = TeamMember(team_id=team.id, user_id=member_id)
+            db.session.add(team_member)
+
+        db.session.commit()
+        return jsonify({"message": "Team created successfully."}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error creating team: {str(e)}"}), 500
+@app.route('/insights', methods=['GET'])
+@jwt_required()
+def get_insights():
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "HR":
+        return jsonify({"error": "Access denied."}), 403
+
+    total_courses = Course.query.count()
+    total_enrollments = Enrollment.query.count()
+    top_performers = QuizAttempt.query.order_by(QuizAttempt.total_score.desc()).limit(5).all()
+
+    performers = [{"name": attempt.user.full_name, "score": attempt.total_score} for attempt in top_performers]
+
+    return jsonify({
+        "total_courses": total_courses,
+        "total_enrollments": total_enrollments,
+        "top_performers": performers
+    }), 200
+
+@app.route('/managers', methods=['GET'])
+def get_managers():
+    try:
+        manager_role = Role.query.filter_by(name='Manager').first()
+        if not manager_role:
+            return jsonify({"error": "Manager role not found!"}), 404
+
+        managers = User.query.filter_by(role_id=manager_role.id).all()
+        manager_list = [{"id": manager.id, "name": manager.full_name} for manager in managers]
+
+        return jsonify({"managers": manager_list}), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+@app.route('/courses', methods=['GET'])
+@jwt_required()
+def get_courses():
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "HR":
+        return jsonify({"error": "Access denied."}), 403
+
+    try:
+        # Fetch courses with enrollments
+        courses_with_enrollments = (
+            db.session.query(Course.id, Course.title)
+            .join(Enrollment, Course.id == Enrollment.course_id)
+            .distinct()
+            .all()
+        )
+
+        courses = [{"id": course.id, "title": course.title} for course in courses_with_enrollments]
+        return jsonify({"courses": courses}), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+@app.route('/course-learners/<string:course_id>', methods=['GET'])
+@jwt_required()
+def get_course_learners(course_id):
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "HR":
+        return jsonify({"error": "Access denied."}), 403
+
+    try:
+        # Find the course using the course_id (which is a string like "CSE101")
+        course = Course.query.filter_by(course_id=course_id).first()
+
+        if not course:
+            return jsonify({"error": "Course not found."}), 404
+        
+        # Get the actual course_id (integer) to use in Enrollment table
+        course_id_int = course.id
+        
+        # Check for learners enrolled in the specific course_id (integer)
+        enrollments = Enrollment.query.filter_by(course_id=course_id_int).all()
+
+        if not enrollments:
+            return jsonify({"learners": []}), 200
+
+        # Fetch enrolled learners
+        learner_list = [{"id": enrollment.user.id, "name": enrollment.user.full_name} for enrollment in enrollments]
+
+        return jsonify({"learners": learner_list}), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
+
+@app.route('/manager-team/<manager_id>', methods=['GET'])
+@jwt_required()
+def get_manager_team(manager_id):
+    claims = get_jwt()
+    role = claims.get("role")
+    if role != "Manager":
+        return jsonify({"error": "Access denied."}), 403
+
+    team = Team.query.filter_by(manager_id=manager_id).first()
+    if not team:
+        return jsonify({"message": "No team found."}), 404
+
+    members = []
+    for member in team.members:
+        # Get course progress
+        course_progress = Enrollment.query.filter_by(user_id=member.user.id).all()
+        progress_data = [
+            {
+                "course_title": enrollment.course.title,
+                "progress": enrollment.progress
+            }
+            for enrollment in course_progress
+        ]
+        # Get quiz results
+        quiz_attempts = QuizAttempt.query.filter_by(user_id=member.user.id).all()
+        quiz_results = [
+            {
+                "quiz_title": attempt.quiz.title,
+                "total_score": attempt.total_score,
+                "pass_status": attempt.pass_status
+            }
+            for attempt in quiz_attempts
+        ]
+
+        members.append({
+            "name": member.user.full_name,
+            "course_progress": progress_data,
+            "quiz_results": quiz_results
+        })
+
+    return jsonify({"team_name": team.name, "members": members}), 200
 
 
 
