@@ -17,6 +17,7 @@ const LearnerDashboard = () => {
   const [feedback, setFeedback] = useState([]);
   const [watchedProgress, setWatchedProgress] = useState(0);
   const [quizCompletion, setQuizCompletion] = useState(0);
+  const [coursePerformance, setCoursePerformance] = useState([]);
   const navigate = useNavigate();
   const token = localStorage.getItem("jwtToken");
   const [progressOverview, setProgressOverview] = useState({
@@ -28,6 +29,7 @@ const LearnerDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('jwtToken');
     localStorage.removeItem('roleName');
+    localStorage.removeItem("user_id");
     axios.post('http://localhost:5000/logout')
       .then(response => {
         console.log(response.data.message);
@@ -101,6 +103,18 @@ const LearnerDashboard = () => {
       });
   }, [token]);
     // Update module progress
+    const fetchProgressOverview = useCallback(() => {
+      axios
+        .get("http://localhost:5000/course-progress-overview", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((response) => {
+          setProgressOverview(response.data);
+        })
+        .catch((error) => {
+          console.error("Error fetching progress overview:", error);
+        });
+    }, [token]);
     const updateModuleProgress = useCallback(
       (moduleId, videoProgress, quizCompletion) => {
         axios
@@ -115,27 +129,17 @@ const LearnerDashboard = () => {
           )
           .then((response) => {
             alert(response.data.message);
-            fetchEnrolledCourses();  // Refresh courses after progress update
+            fetchEnrolledCourses();
+            fetchProgressOverview();  // Refresh courses after progress update
           })
           .catch((error) => {
             console.error("Error updating module progress:", error);
             alert("Error updating module progress.");
           });
       },
-      [token, fetchEnrolledCourses]
+      [token, fetchEnrolledCourses,fetchProgressOverview]
     );
-    const fetchProgressOverview = useCallback(() => {
-      axios
-        .get("http://localhost:5000/course-progress-overview", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        .then((response) => {
-          setProgressOverview(response.data);
-        })
-        .catch((error) => {
-          console.error("Error fetching progress overview:", error);
-        });
-    }, [token]);
+    
     const fetchFeedback = useCallback(() => {
       axios
         .get("http://localhost:5000/fetch-feedback", {
@@ -153,6 +157,18 @@ const LearnerDashboard = () => {
           alert("Error fetching feedback.");
         });
     }, [token]);
+    const fetchCoursePerformance = useCallback(() => {
+      axios.get("http://localhost:5000/course-performance", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((response) => {
+        setCoursePerformance(response.data.coursePerformance);
+      })
+      .catch((error) => {
+        console.error("Error fetching course performance:", error);
+      });
+    }, [token]);
+    
 
   useEffect(() => {
     fetchCourses();
@@ -160,7 +176,8 @@ const LearnerDashboard = () => {
     fetchCompletedCourses();
     fetchFeedback();
     fetchProgressOverview();
-  }, [fetchCourses, fetchEnrolledCourses, fetchCompletedCourses,fetchFeedback,fetchProgressOverview]);
+    fetchCoursePerformance();
+  }, [fetchCourses, fetchEnrolledCourses, fetchCompletedCourses,fetchFeedback,fetchProgressOverview, fetchCoursePerformance]);
 
   const toggleCourseDetails = (courseId) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
@@ -247,9 +264,34 @@ const LearnerDashboard = () => {
       });
     }
   }, [modalType, courseToEnroll, handleYouTubeProgress]);
+  const renderProgressBar = (progress) => (
+    <div className="progress-bar-container">
+      <div className="progress-bar" style={{ width: `${progress}%` }}>
+        {progress}%
+      </div>
+    </div>
+  );
+  const renderCoursePerformance = () => (
+    <div className="course-performance-container">
+      <h3>Your Courses</h3>
+      {coursePerformance.map((course) => (
+        <div key={course.courseId} className="course-performance-item">
+          <h4>{course.title}</h4>
+          <p>Status: {course.status}</p>
+          <p>Progress: {renderProgressBar(course.progress)}</p>
+          <p>Modules: {course.completedModules}/{course.totalModules}</p>
+          <p>Quiz Points: {course.achievedPoints}/{course.totalPoints}</p>
+        </div>
+      ))}
+    </div>
+  );
   
    const barData = {
-    labels: ["Completed Courses", "Enrolled Courses", "In-Progress Courses"],
+    labels: [
+      `Completed Courses (${progressOverview.completedCourses})`,
+      `NotStarted Courses (${progressOverview.enrolledCourses})`,
+      `In-Progress Courses (${progressOverview.inProgressCourses})`,
+    ],
     datasets: [
       {
         label: "Course Progress Overview",
@@ -272,11 +314,19 @@ const LearnerDashboard = () => {
       },
     },
     scales: {
+      x: {
+        title: {
+          display: true,
+          text: "Course Categories",
+        },
+      },
       y: {
         beginAtZero: true,
       },
     },
   };
+ 
+  
   
   return (
     <div className="dashboard-container">
@@ -315,12 +365,19 @@ const LearnerDashboard = () => {
               <h3>View Feedback</h3>
               <button onClick={() => openModal("feedback")}>VIEW</button>
             </div>
+            <div className="action-item">
+  <h3>View Progress & Scorecards</h3>
+  <button onClick={fetchCoursePerformance}>VIEW</button>
+</div>
+
           </div>
+
         {/* Render Bar Graph */}
         <div className="bar-graph-container">
           <h3>Your Course Progress</h3>
           <Bar data={barData} options={barOptions} />
-        </div>  
+        </div> 
+        {renderCoursePerformance()} 
         </div>
       </div>
 
