@@ -18,8 +18,19 @@ const HRDashboard = () => {
     duration: "",
     modules: [],
   });
-  const [loading, setLoading] = useState(false);
-  const [learnersProgress, setLearnersProgress] = useState({});
+  const [showTeamsModal, setShowTeamsModal] = useState(false);
+const [showInsightsModal, setShowInsightsModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [learners, setLearners] = useState([]);
+  const [managers, setManagers] = useState([]);
+  const [showCreateTeamForm, setShowCreateTeamForm] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const [selectedManager, setSelectedManager] = useState("");
+  const [teams, setTeams] = useState([]);
+  const [selectedLearners, setSelectedLearners] = useState([]);
+  const [ selectedCourseForLearners,setSelectedCourseForLearners] = useState(null);
+  const [insights, setInsights] = useState({ total_courses: 0, total_enrollments: 0, top_performers: [] });
+  const [learnersProgress, setLearnersProgress] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedLearner, setSelectedLearner] = useState(null);
@@ -49,6 +60,20 @@ const HRDashboard = () => {
       ],
     },
   ]);
+  const [expandedLearner, setExpandedLearner] = useState(null);
+  useEffect(() => {
+    fetchCourses();
+    fetchLearnersProgress();
+    fetch1Courses();
+    fetchManagers();
+    fetchTeams();
+    fetchInsights();
+  }, []);
+
+const toggleLearnerDetails = (learnerId) => {
+  setExpandedLearner(expandedLearner === learnerId ? null : learnerId);
+};
+
   useEffect(() => {
     // Fetch instructors when the component mounts
     axios
@@ -165,7 +190,7 @@ const HRDashboard = () => {
     // Clear the local storage to remove user data
     localStorage.removeItem('jwtToken');
     localStorage.removeItem('roleName');
-
+    localStorage.removeItem("user_id");
   // Optionally notify the backend (if required)
   axios.post('http://localhost:5000/logout')
     .then(response => {
@@ -228,10 +253,124 @@ const HRDashboard = () => {
         alert("Failed to fetch courses.");
       });
   };
-  useEffect(() => {
-    fetchCourses();
-    fetchLearnersProgress();
-  }, []);
+  const fetch1Courses = () => {
+    const token = localStorage.getItem("jwtToken");
+    axios.get("http://localhost:5000/courses", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(response => setCourses(response.data.courses || []))
+    .catch(error => console.error("Error fetching courses:", error));
+  };
+
+  const fetchManagers = () => {
+    const token = localStorage.getItem("jwtToken");
+    axios.get("http://localhost:5000/managers", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(response => setManagers(response.data.managers || []))
+    .catch(error => console.error("Error fetching managers:", error));
+  };
+
+  const fetchTeams = () => {
+    const token = localStorage.getItem("jwtToken");
+    axios.get("http://localhost:5000/teams", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(response => setTeams(response.data || []))
+    .catch(error => console.error("Error fetching teams:", error));
+  };
+
+  const fetchInsights = () => {
+    const token = localStorage.getItem("jwtToken");
+    axios.get("http://localhost:5000/insights", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(response => setInsights(response.data || {}))
+    .catch(error => console.error("Error fetching insights:", error));
+  };
+
+  const handleCourseSelection = (selectedCourseId) => {
+    setSelectedCourseForLearners(selectedCourseId);  // Use selectedCourseId instead of courseId
+    console.log("Selected Course for Learners:", selectedCourseId);
+    if (selectedCourseId) {
+      fetchCourseLearners(selectedCourseId);  // Pass the selectedCourseId to fetchLearners
+    }
+};
+
+const fetchCourseLearners = (selectedCourseId) => {
+    const token = localStorage.getItem("jwtToken");
+
+    if (!selectedCourseId) {
+      alert("Invalid course selected.");
+      return;
+    }
+
+    axios
+      .get(`http://localhost:5000/course-learners/${selectedCourseId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response) => {
+        console.log("Learners for the course:", response.data.learners);
+
+        if (Array.isArray(response.data.learners) && response.data.learners.length > 0) {
+          setLearners(response.data.learners); // Populate learners state
+        } else {
+          setLearners([]); // Reset learners if none are found
+          alert("No learners found for the selected course.");
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching course learners:", error.response?.data || error.message);
+        alert("Failed to fetch learners for the selected course.");
+      });
+};
+
+  const handleCreateTeam = () => {
+    const token = localStorage.getItem("jwtToken");
+    if (!selectedCourseForLearners) {
+      alert("Please select a course before creating a team.");
+      return;
+    }
+    if (!teamName || !selectedManager || selectedLearners.length < 2) {
+      alert("Please fill all fields and select at least 2 learners.");
+      return;
+    }
+
+    const payload = { teamName, managerId: selectedManager, memberIds: selectedLearners };
+    axios.post("http://localhost:5000/create-team", payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(response => {
+      alert(response.data.message || "Team created successfully.");
+      setShowCreateTeamForm(false);
+      setTeamName("");
+      setSelectedManager("");
+      setSelectedLearners([]);
+      fetchTeams(); // Refresh teams
+    })
+    .catch(error => alert("Error creating team:", error));
+  };
+
+  const toggleLearnerSelection = (learnerId) => {
+    setSelectedLearners((prevSelected) => {
+      if (prevSelected.includes(learnerId)) {
+        // If already selected, remove from the array
+        return prevSelected.filter((id) => id !== learnerId);
+      } else if (prevSelected.length < 5) {
+        // Limit selection to 5 learners
+        return [...prevSelected, learnerId];
+      } else {
+        alert("You can select up to 5 learners only.");
+        return prevSelected;
+      }
+    });
+  };
+  
+  
+
+  
   const toggleCourseDetails = (courseId) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
   };
@@ -294,7 +433,7 @@ const HRDashboard = () => {
       });
   };
   const fetchLearnersProgress = () => {
-    setLoading(true); 
+     
     const token = localStorage.getItem("jwtToken");
     axios
       .get("http://localhost:5000/fetch-learners-progress", {
@@ -305,7 +444,22 @@ const HRDashboard = () => {
       .then((response) => {
         console.log("Learners progress response:", response.data); 
         if (response.data) {
-          setLearnersProgress(response.data);
+          const transformedData = Object.values(response.data).map((learner) => ({
+            id: learner.id || null, // Provide a fallback if ID is missing
+            name: learner.learnerName,
+            email: learner.learnerEmail,
+            courses: learner.enrolledCourses.map((course) => ({
+              id: course.id || null, 
+              title: course.courseName,
+              progress: course.courseProgress,
+              moduleProgress: course.moduleProgress,
+              quizResults: course.quizResults,
+              
+            })),
+          }));
+          console.log("Transformed Data:", transformedData); 
+          setLearnersProgress(transformedData);
+          
         } else {
           alert("No learners' progress found.");
         }
@@ -316,13 +470,23 @@ const HRDashboard = () => {
       });
   };
 
-  const handleProvideFeedback = (learnerId, courseId) => {
+  const handleProvideFeedback = () => {
     const token = localStorage.getItem("jwtToken");
     const payload = { feedback };
-    
+    console.log("Selected Learner:", selectedLearner);  // Log learner ID
+    console.log("Selected Course:", selectedCourse);    // Log course ID
+    if (!selectedLearner ) {
+      alert("Invalid learner .");
+      return;
+    }
+    if (!selectedCourse ) {
+      alert("Invalid course .");
+      return;
+    }
+  
 
     axios
-      .post(`http://localhost:5000/provide-feedback/${learnerId}/${courseId}`, payload, {
+      .post(`http://localhost:5000/provide-feedback/${selectedLearner}/${selectedCourse}`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -337,6 +501,16 @@ const HRDashboard = () => {
         alert("Failed to provide feedback.");
       });
   };
+  const handleViewTeams = () => {
+    setShowTeamsModal(true); // Show the teams modal
+  };
+  const handleViewInsights = () => {
+    setShowInsightsModal(true); // Show the insights modal
+  };
+  const handleShowCreateTeamForm = () => {
+    setShowCreateTeamForm(true); // Show the create team form modal
+  };
+   
   
   return (
     <div className="dashboard-container">
@@ -375,18 +549,19 @@ const HRDashboard = () => {
                 <h3>View Progress</h3>
                 <p>View progress of the teams.</p>
               </div>
-              <button onClick={fetchLearnersProgress} disabled={loading}>
-            {loading ? "Loading..." : "VIEW"}
+              <button onClick= {() => {
+        setShowProgressModal(true); // Show progress modal
+        fetchLearnersProgress();   // Fetch progress data
+      }} >
+            
             View
           </button>
             </div>
             <div className="action-item">
-              <div>
-                <h3>Assign Members</h3>
-                <p>Assign members to each team.</p>
-              </div>
-              <button>ASSIGN</button>
-            </div>
+  <h3>Insights</h3>
+  <button onClick={handleViewInsights}>View Insights</button>
+</div>
+
             <div className="action-item">
               <div>
                 <h3>Manage Courses</h3>
@@ -396,52 +571,274 @@ const HRDashboard = () => {
             </div>
             <div className="action-item">
               <div>
-                <h3>View Teams</h3>
-                <p>View team details.</p>
+              <h3>Teams</h3>
               </div>
-              
+              <button onClick={handleViewTeams}>View Teams</button>
             </div>
+
+
+
+              <div className="action-item">
+                <div>
+  <h3>Create Team</h3>
+  </div>
+  <button onClick={handleShowCreateTeamForm}>Create Team</button>
+</div>
+
+          {/* Modal for teams details*/}
+{showTeamsModal && (
+  <div className="popup-overlay">
+    <div className="teams-popup">
+      <h3>Teams</h3>
+      {teams?.length > 0 ? (
+        teams.map((team) => (
+          <div key={team.id} className="team-details">
+            <h4>{team.name}</h4>
+            <p>Manager: {team.manager_name}</p>
+            <h5>Members:</h5>
+            <ul>
+              {team.members?.length > 0 ? (
+                team.members.map((member) => (
+                  <li key={member.id}>{member.name}</li>
+                ))
+              ) : (
+                <li>No members available.</li>
+              )}
+            </ul>
+          </div>
+        ))
+      ) : (
+        <p>No teams available.</p>
+      )}
+      <div className="popup-actions">
+        <button onClick={() => setShowTeamsModal(false)}>Close</button>
+      </div>
+    </div>
+  </div>
+)}
+           {/* Insights Section */}
+           {showInsightsModal && (
+  <div className="popup-overlay">
+    <div className="insights-popup">
+      <h3>Insights</h3>
+      <p>Total Courses: {insights?.total_courses || 0}</p>
+      <p>Total Enrollments: {insights?.total_enrollments || 0}</p>
+      <h4>Top Performers:</h4>
+      <ul>
+        {insights?.top_performers?.length > 0 ? (
+          insights.top_performers.map((performer, index) => (
+            <li key={index}>{performer.name} (Score: {performer.score})</li>
+          ))
+        ) : (
+          <li>No top performers available.</li>
+        )}
+      </ul>
+      <div className="popup-actions">
+        <button onClick={() => setShowInsightsModal(false)}>Close</button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* Teams Section 
+<div className="action-item">
+  <h3>Teams</h3>
+  {teams?.length > 0 ? (
+    teams.map((team) => (
+      <div key={team.id} className="team-card">
+        <h4>{team.name}</h4>
+        <p>Manager: {team.manager_name}</p>
+        <h5>Members:</h5>
+        <ul>
+          {team.members?.length > 0 ? (
+            team.members.map((member) => (
+              <li key={member.id}>{member.name}</li>
+            ))
+          ) : (
+            <li>No members available.</li>
+          )}
+        </ul>
+      </div>
+    ))
+  ) : (
+    <p>No teams available.</p>
+  )}
+</div>
+*/}
+            
+
           </div>
         </div>
       </div>
-            {/* Display Learners' Progress */}
-            {learnersProgress && Object.keys(learnersProgress).length > 0 && (
-        <div className="progress-data">
-          <h3>Learners' Progress</h3>
-          {learnersProgress.map((learner) => (
-            <div key={learner.id} className="learner-progress">
-              <h4>{learner.name}</h4>
-              <p>Email: {learner.email}</p>
-              <div className="enrolled-courses">
-                {learner.courses.map((course, index) => (
-                  <div key={index} className="course-progress">
-                    <h5>{course.title}</h5>
-                    <p>Progress: {course.progress}%</p>
-                    <button onClick={() => {
-                        setSelectedLearner(learner.id);
-                        setSelectedCourse(course.id);
-                        setShowFeedbackModal(true); // Show feedback modal
-                      }}>
-                      Provide Feedback
-                    </button>
-                  </div>
-                ))}
-              </div>
+
+
+{/* Create Team Form */}
+{showCreateTeamForm && (
+  <div className="popup-overlay">
+    <div className="create-team-popup">
+      <h3>Create Team</h3>
+      <div>
+        <label>Select Course:</label>
+        <select
+          onChange={(e) => handleCourseSelection(e.target.value)}
+          value={selectedCourseForLearners || ""}
+        >
+          <option value="" disabled>-- Select a course --</option>
+          {courses.map((course) => (
+            <option key={course.id} value={course.id}>{course.title}</option>
+          ))}
+        </select>
+      </div>
+
+      {selectedCourseForLearners && learners.length > 0 && (
+        <div>
+          <label>Select Learners (2-5):</label>
+          {learners.map((learner) => (
+            <div key={learner.id}>
+              <input
+                type="checkbox"
+                id={learner.id}
+                checked={selectedLearners.includes(learner.id)}
+                onChange={() => toggleLearnerSelection(learner.id)}
+              />
+              <label htmlFor={learner.id}>{learner.name}</label>
             </div>
           ))}
         </div>
       )}
+
+      <div>
+        <label>Team Name:</label>
+        <input
+          type="text"
+          value={teamName}
+          onChange={(e) => setTeamName(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label>Select Manager:</label>
+        <select
+          value={selectedManager}
+          onChange={(e) => setSelectedManager(e.target.value)}
+        >
+          <option value="">-- Select Manager --</option>
+          {managers.map((manager) => (
+            <option key={manager.id} value={manager.id}>{manager.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="popup-actions">
+        <button onClick={handleCreateTeam}>Create Team</button>
+        <button onClick={() => setShowCreateTeamForm(false)}>Cancel</button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* Display Learners' Progress */}
+{showProgressModal && (
+  <div className="modal">
+    <div className="modal-content">
+      <h2>View Learners' Progress</h2>
+      
+      <div className="courses-container">
+        {learnersProgress.length > 0 ? (
+          learnersProgress.map((learner) => (
+            <div key={learner.id} className="course-dropdown">
+              <button
+                className="course-title"
+                onClick={() => toggleLearnerDetails(learner.id)}
+              >
+                {learner.name}
+              </button>
+              {expandedLearner === learner.id && (
+                <div className="course-details">
+                  <p>
+                    <strong>Email:</strong> {learner.email}
+                  </p>
+                  {learner.courses?.length > 0 ? (
+                    learner.courses.map((course, index) => (
+                      <div key={index} className="module">
+                        <h4>{course.title}</h4>
+                        <p>
+                          <strong>Progress:</strong> {course.progress}%
+                        </p>
+                        <h5>Module Progress:</h5>
+                        {course.moduleProgress ? (
+                          <ul>
+                            {Object.entries(course.moduleProgress).map(
+                              ([moduleId, progress]) => (
+                                <li key={moduleId}>
+                                  Module {moduleId}: {progress}%
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        ) : (
+                          <p>No module progress available</p>
+                        )}
+                        <h5>Quiz Results:</h5>
+                        {course.quizResults?.length > 0 ? (
+                          <ul>
+                            {course.quizResults.map((quiz, quizIndex) => (
+                              <li key={quizIndex}>
+                                Quiz ID: {quiz.quizId}, Pass Status:{" "}
+                                {quiz.passStatus ? "Passed" : "Failed"}, Total
+                                Score: {quiz.totalScore}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p>No quiz results available</p>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedLearner(learner.id);
+                            setSelectedCourse(course.id);
+                            setShowFeedbackModal(true);
+                          }}
+                        >
+                          Provide Feedback
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No courses available for this learner.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <p>No learners' progress available.</p>
+        )}
+      </div>
+      <button
+        type="button"
+        className="cancel-btn"
+        onClick={() => setShowProgressModal(false)}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
+
        {/* Feedback Modal */}
        {showFeedbackModal && (
-        <div className="feedback-modal">
-          <div className="modal-content">
+        <div className="popup-overlay">
+          <div className="feedback-popup">
             <h2>Provide Feedback</h2>
             <textarea
               placeholder="Enter your feedback here..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
             />
-            <div className="modal-actions">
+            <div className="popup-actions">
               <button onClick={() => setShowFeedbackModal(false)}>Cancel</button>
               <button
                 onClick={() => {
