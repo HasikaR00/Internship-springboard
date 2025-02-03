@@ -113,7 +113,20 @@ class QuizAttempt(db.Model):
     user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))
     quiz = db.relationship('Quiz', backref=db.backref('attempts', lazy=True))
 
+class Team(db.Model):
+    __tablename__ = 'teams'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    manager = db.relationship('User', backref=db.backref('managed_teams', lazy=True))
 
+class TeamMember(db.Model):
+    __tablename__ = 'team_members'
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    team = db.relationship('Team', backref=db.backref('members', lazy=True))
+    user = db.relationship('User', backref=db.backref('team_memberships', lazy=True))
 
 
 def initialize_database():
