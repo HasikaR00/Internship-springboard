@@ -16,10 +16,35 @@ const InstructorDashboard = () => {
     instructor: "",
     startDate: "",
     duration: "",
-    youtubeLink: "", 
+    modules: [], 
   });
   const navigate = useNavigate(); 
-
+  const [editingCourseId, setEditingCourseId] = useState(null);
+    const [modules, setModules] = useState([
+      {
+        title: "",
+        introduction: "",
+        points: "",
+        youtubeLink: "",
+        pdfLink: "",
+        quizzes: [
+          {
+            title: "",
+            pass_score:"",
+            questions: [
+              {
+                text: "",
+                options: ["", "", "", ""],
+                correct_answer: "",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    useEffect(() => {
+      fetchCourses();
+    }, []);
   useEffect(() => {
     // Fetch instructors when the component mounts
     axios
@@ -38,11 +63,86 @@ const InstructorDashboard = () => {
   setCourseData({ ...courseData, [e.target.name]: e.target.value });
   };
 
+  const handleAddModule = () => {
+    setModules([
+      ...modules,
+      {
+        title: "",
+        introduction: "",
+        points: "",
+        youtubeLink: "",
+        pdfLink: "",
+        quizzes: [
+          {
+            title: "",
+            pass_score:"",
+            questions: [
+              {
+                text: "",
+                options: ["", "", "", ""],
+                correct_answer: "",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  };
+
+  const handleModuleChange = (index, e) => {
+    const updatedModules = [...modules];
+    updatedModules[index][e.target.name] = e.target.value;
+    setModules(updatedModules);
+  };
+
+  const handleAddQuiz = (moduleIndex) => {
+    const updatedModules = [...modules];
+    updatedModules[moduleIndex].quizzes.push({
+      title: "",
+      pass_score:"",
+      questions: [{ text: "", options: ["", "", "", ""], correct_answer: "" }],
+    });
+    setModules(updatedModules);
+  };
+
+  const handleQuizChange = (moduleIndex, quizIndex, e) => {
+    const updatedModules = [...modules];
+    updatedModules[moduleIndex].quizzes[quizIndex][e.target.name]  = e.target.value;
+    setModules(updatedModules);
+  };
+  const handleAddQuizQuestion = (moduleIndex, quizIndex) => {
+    const updatedModules = [...modules];
+    updatedModules[moduleIndex].quizzes[quizIndex].questions.push({
+      text: "",
+      options: ["", "", "", ""],
+      correct_answer: "",
+    });
+    setModules(updatedModules);
+  };
+
+  const handleQuizQuestionChange = (
+    moduleIndex,
+    quizIndex,
+    questionIndex,
+    e
+  ) => {
+    const updatedModules = [...modules];
+    updatedModules[moduleIndex].quizzes[quizIndex].questions[questionIndex][
+      e.target.name
+    ] = e.target.value;
+    setModules(updatedModules);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const token = localStorage.getItem("jwtToken");
+    const payload = {
+      ...courseData,
+      modules,
+    };
+
     axios
-      .post("http://localhost:5000/add-course", courseData,{
+      .post("http://localhost:5000/add-course", payload,{
         headers: {
           Authorization: `Bearer ${token}`, // Include token in the request header
       },
@@ -62,7 +162,7 @@ const InstructorDashboard = () => {
     // Clear the local storage to remove user data
     localStorage.removeItem('jwtToken');
     localStorage.removeItem('roleName');
-
+    localStorage.removeItem("user_id");
   // Optionally notify the backend (if required)
   axios.post('http://localhost:5000/logout')
     .then(response => {
@@ -84,8 +184,13 @@ const InstructorDashboard = () => {
 
 
   const fetchCourses = () => {
+    const token = localStorage.getItem("jwtToken"); 
     axios
-      .get("http://localhost:5000/fetch-course")
+      .get("http://localhost:5000/fetch-all-courses", {
+        headers: {
+          Authorization: `Bearer ${token}`, // Include token in headers
+        },
+      })
       .then((response) => {
         console.log("API Response:", response.data.courses); // Debugging
         
@@ -99,7 +204,16 @@ const InstructorDashboard = () => {
             startDate: course.startDate || "N/A",
             duration: course.duration || "N/A",
             endDate: course.endDate || "N/A",
-            youtubeLink: course.youtubeLink || "N/A",
+            modules: course.modules.map(module => ({
+              ...module, // Mapping all necessary module fields
+              quizzes: module.quizzes.map(quiz => ({
+                ...quiz,
+                questions: quiz.questions.map(question => ({
+                  ...question,
+                  correct_answer: question.correct_answer || "N/A", // Ensure correct_answer is mapped
+                })),
+              })),
+            })),
           }));
           setCourses(formattedCourses);
           setShowManageCourses(true);
@@ -109,14 +223,71 @@ const InstructorDashboard = () => {
       })
       .catch((error) => {
         console.error("Error fetching courses:", error);
+        alert("Failed to fetch courses.");
       });
   };
-  useEffect(() => {
-    fetchCourses();
-  }, []);
+
   const toggleCourseDetails = (courseId) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
   };
+  const handleEditCourse = (course) => {
+    setEditingCourseId(course.id);
+    setCourseData({
+      ...course,
+      
+    });
+    setModules(course.modules || [{
+      title: "",
+      introduction: "",
+      points: "",
+      youtubeLink: "",
+      pdfLink: "",
+      quizzes: [
+        {
+          title: "",
+          pass_score: "",
+          questions: [
+            {
+              text: "",
+              options: ["", "", "", ""],
+              correct_answer: "",
+            },
+          ],
+        },
+      ],
+    },]);
+  };
+  const handleUpdateCourse = (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("jwtToken");
+    const payload = {
+      ...courseData,
+      startDate: courseData.startDate, 
+      modules,
+    };
+    console.log("Payload:", payload); 
+    axios
+      .put(`http://localhost:5000/edit-course`, 
+        payload,
+        {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response) => {
+        if (response.data.message) {
+          alert(response.data.message);
+          setEditingCourseId(null); // Close the form after successful update
+          fetchCourses(); // Re-fetch the courses after update
+        } else {
+          alert(response.data.error || "Failed to update course.");
+        }
+      })
+      .catch((error) => {
+        console.error("Error updating course:", error);
+      });
+  };
+  
   const handleDashboardNavigation = () => {
     const userDetails = JSON.parse(localStorage.getItem("userDetails"));
 
@@ -177,20 +348,7 @@ const InstructorDashboard = () => {
               </div>
               <button onClick={() => setShowNewCourseForm(true)}>ADD</button>
             </div>
-            <div className="action-item">
-              <div>
-                <h3>View Progress</h3>
-                <p>View progress of the teams.</p>
-              </div>
-              <button>VIEW</button>
-            </div>
-            <div className="action-item">
-              <div>
-                <h3>Assign Members</h3>
-                <p>Assign members to each team.</p>
-              </div>
-              <button>ASSIGN</button>
-            </div>
+            
             <div className="action-item">
               <div>
                 <h3>Manage Courses</h3>
@@ -198,13 +356,7 @@ const InstructorDashboard = () => {
               </div>
               <button onClick={fetchCourses}>MANAGE</button>
             </div>
-            <div className="action-item">
-              <div>
-                <h3>View Teams</h3>
-                <p>View team details.</p>
-              </div>
-              <button>VIEW</button>
-            </div>
+            
           </div>
         </div>
       </div>
@@ -243,7 +395,72 @@ const InstructorDashboard = () => {
                             <strong>End Date:</strong> {course.endDate}
                           </p>
                         )}
-                        <p><strong>Youtube Link:</strong> <a href={course.youtubeLink} target="_blank" rel="noopener noreferrer">{course.youtubeLink}</a></p>
+ {/* Modules */}
+ {course.modules && course.modules.length > 0 ? (
+                    <div>
+                      <h4>Modules:</h4>
+                      {course.modules.map((module, moduleIndex) => (
+                        <div key={moduleIndex} className="module">
+                          <p>
+                            <strong>Title:</strong> {module.title || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Introduction:</strong> {module.introduction || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Points:</strong> {module.points || "N/A"}
+                          </p>
+                          {module.youtubeLink && (
+                            <p>
+                              <strong>YouTube Link:</strong>{" "}
+                              <a href={module.youtubeLink} target="_blank" rel="noopener noreferrer">
+                                {module.youtubeLink}
+                              </a>
+                            </p>
+                          )}
+                          {module.pdfLink && (
+                            <p>
+                              <strong>PDF Link:</strong>{" "}
+                              <a href={module.pdfLink} target="_blank" rel="noopener noreferrer">
+                                {module.pdfLink}
+                              </a>
+                            </p>
+                          )}
+                          {module.quizzes && module.quizzes.length > 0 && (
+                            <div>
+                              <h5>Quizzes:</h5>
+                              {module.quizzes.map((quiz, quizIndex) => (
+                                <div key={quizIndex} className="quiz">
+                                  <p>
+                                    <strong>Quiz Title:</strong> {quiz.title || "N/A"}
+                                  </p>
+                                  {quiz.questions.map((question, questionIndex) => (
+                                    <div key={questionIndex} className="question">
+                                      <p>
+                                        <strong>Question {questionIndex + 1}:</strong> {question.text || "N/A"}
+                                      </p>
+                                      <p>
+                                        <strong>Options:</strong> {question.options.join(", ")}
+                                      </p>
+                                      <p>
+                                        <strong>Correct Answer:</strong> {question.correct_answer || "N/A"}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No modules available.</p>
+                  )}
+
+                        <button onClick={() => handleEditCourse(course)}>
+                          Edit
+                        </button>
                       </div>
                     )}
                   </div>
@@ -331,12 +548,343 @@ const InstructorDashboard = () => {
                   onChange={handleChange}
                 />
               </div>
-              <input type="url" name="youtubeLink" placeholder="YouTube Link" value={courseData.youtubeLink} onChange={handleChange} required />
+              <div className="form-group">
+                <label>Modules</label>
+                {modules.map((module, moduleIndex) => (
+                  <div key={moduleIndex}>
+                    <input
+                      type="text"
+                      name="title"
+                      placeholder="Module Title"
+                      value={module.title}
+                      onChange={(e) => handleModuleChange(moduleIndex, e)}
+                    />
+                    <input
+      type="text"
+      name="introduction"
+      placeholder="Introduction"
+      value={module.introduction}
+      onChange={(e) => handleModuleChange(moduleIndex, e)}
+    />              
+    <input
+      type="text"
+      name="points"
+      placeholder="Learning Points"
+      value={module.points}
+      onChange={(e) => handleModuleChange(moduleIndex, e)}
+    />
+    <input
+      type="url"
+      name="youtubeLink"
+      placeholder="Videolink"
+      value={module.youtubeLink}
+      onChange={(e) => handleModuleChange(moduleIndex, e)}
+    />
+    <input
+      type="url"
+      name="pdfLink"
+      placeholder="pdflink"
+      value={module.pdfLink}
+      onChange={(e) => handleModuleChange(moduleIndex, e)}
+    />
+    
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuiz(moduleIndex)}
+                    >
+                      Add Quiz
+                    </button>
+                    {module.quizzes.map((quiz, quizIndex) => (
+        <div key={quizIndex}>
+          <input
+            type="text"
+            name="title"
+            placeholder="Quiz Title"
+            value={quiz.title}
+            onChange={(e) =>
+              handleQuizChange(moduleIndex, quizIndex, e)
+            }
+          />
+          <input
+                      type="number"
+                      name="pass_score" // New input for pass score
+                      placeholder="Passing Score"
+                      value={quiz.pass_score||""}
+                      onChange={(e) =>
+                        handleQuizChange(moduleIndex, quizIndex, e)
+                      }
+                    />
+          {quiz.questions.map((question, questionIndex) => (
+            <div key={questionIndex}>
+              <input
+                type="text"
+                name="text"
+                placeholder="Question Text"
+                value={question.text}
+                onChange={(e) =>
+                  handleQuizQuestionChange(
+                    moduleIndex,
+                    quizIndex,
+                    questionIndex,
+                    e
+                  )
+                }
+              />
+              {question.options.map((_, optionIndex) => (
+                <input
+                  key={optionIndex}
+                  type="text"
+                  name={`option${optionIndex}`}
+                  placeholder={`Option ${optionIndex + 1}`}
+                  value={question.options[optionIndex]}
+                  onChange={(e) => {
+                    const updatedModules = [...modules];
+                    updatedModules[moduleIndex].quizzes[quizIndex].questions[
+                      questionIndex
+                    ].options[optionIndex] = e.target.value;
+                    setModules(updatedModules);
+                  }}
+                />
+              ))}
+              <input
+                type="text"
+                name="correct_answer"
+                placeholder="Correct Answer"
+                value={question.correct_answer}
+                onChange={(e) =>
+                  handleQuizQuestionChange(
+                    moduleIndex,
+                    quizIndex,
+                    questionIndex,
+                    e
+                  )
+                }
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  handleAddQuizQuestion(moduleIndex, quizIndex)
+                }
+              >
+                Add Question
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+                  </div>
+                ))}
+                <button type="button" onClick={handleAddModule}>
+                  Add Module
+                </button>
+              </div>
               <button type="submit" className="submit-btn">Submit</button>
               <button
                 type="button"
                 className="cancel-btn"
                 onClick={() => setShowNewCourseForm(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+            {/* Edit Course Form */}
+            {editingCourseId && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Edit Course</h2>
+            <form onSubmit={handleUpdateCourse}>
+            <div className="form-group">
+              <label>Course ID</label>
+              <input
+                type="text"
+                name="courseId"  // Adding the courseId input
+                value={courseData.courseId}
+                onChange={handleChange}
+                placeholder="Enter Course ID"
+                required  // Assuming courseId should be required
+              />
+            </div>
+              <div className="form-group">
+                <label>Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={courseData.title}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <input
+                  type="text"
+                  name="description"
+                  value={courseData.description}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group">
+                <label>Instructor</label>
+                <select
+                  name="instructor"
+                  value={courseData.instructor}
+                  onChange={handleChange}
+                >
+                  <option value="">Select Instructor</option>
+                  {instructors.map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={courseData.startDate}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group">
+                <label>Duration (weeks)</label>
+                <input
+                  type="number"
+                  name="duration"
+                  value={courseData.duration}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group">
+                <label>Modules</label>
+                {modules.map((module, moduleIndex) => (
+                  <div key={moduleIndex}>
+                    <input
+                      type="text"
+                      name="title"
+                      placeholder="Module Title"
+                      value={module.title}
+                      onChange={(e) => handleModuleChange(moduleIndex, e)}
+                    />
+                    <input
+                type="text"
+                name="introduction"
+                placeholder="Introduction"
+                value={module.introduction}
+                onChange={(e) => handleModuleChange(moduleIndex, e)}
+              />
+              <input
+                type="text"
+                name="points"
+                placeholder="Learning Points"
+                value={module.points}
+                onChange={(e) => handleModuleChange(moduleIndex, e)}
+              />
+              <input
+                type="url"
+                name="youtubeLink"
+                placeholder="Video Link"
+                value={module.youtubeLink}
+                onChange={(e) => handleModuleChange(moduleIndex, e)}
+              />
+              <input
+                type="url"
+                name="pdfLink"
+                placeholder="PDF Link"
+                value={module.pdfLink}
+                onChange={(e) => handleModuleChange(moduleIndex, e)}
+              />
+                    <button
+                      type="button"
+                      onClick={() => handleAddQuiz(moduleIndex)}
+                    >
+                      Add Quiz
+                    </button>
+                    {module.quizzes.map((quiz, quizIndex) => (
+        <div key={quizIndex}>
+          <input
+            type="text"
+            name="title"
+            placeholder="Quiz Title"
+            value={quiz.title}
+            onChange={(e) =>
+              handleQuizChange(moduleIndex, quizIndex, e)
+            }
+          />
+          {quiz.questions.map((question, questionIndex) => (
+            <div key={questionIndex}>
+              <input
+                type="text"
+                name="text"
+                placeholder="Question Text"
+                value={question.text}
+                onChange={(e) =>
+                  handleQuizQuestionChange(
+                    moduleIndex,
+                    quizIndex,
+                    questionIndex,
+                    e
+                  )
+                }
+              />
+              {question.options.map((_, optionIndex) => (
+                <input
+                  key={optionIndex}
+                  type="text"
+                  name={`option${optionIndex}`}
+                  placeholder={`Option ${optionIndex + 1}`}
+                  value={question.options[optionIndex]}
+                  onChange={(e) => {
+                    const updatedModules = [...modules];
+                    updatedModules[moduleIndex].quizzes[quizIndex].questions[
+                      questionIndex
+                    ].options[optionIndex] = e.target.value;
+                    setModules(updatedModules);
+                  }}
+                />
+              ))}
+              <input
+                type="text"
+                name="correct_answer"
+                placeholder="Correct Answer"
+                value={question.correct_answer}
+                onChange={(e) =>
+                  handleQuizQuestionChange(
+                    moduleIndex,
+                    quizIndex,
+                    questionIndex,
+                    e
+                  )
+                }
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  handleAddQuizQuestion(moduleIndex, quizIndex)
+                }
+              >
+                Add Question
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+                  </div>
+                ))}
+                <button type="button" onClick={handleAddModule}>
+                  Add Module
+                </button>
+              </div>
+              <button type="submit" className="submit-btn">
+                Update
+              </button>
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => setEditingCourseId(null)}
               >
                 Cancel
               </button>
