@@ -10,6 +10,7 @@ import ForgetPassword from "./forgetpassword";
 import "./styles.css";
 import LearnerDashboard from "./learnerdashboard";
 import ManagerDashboard from "./managerdashboard";
+import QuizPage from "./quizpage.js";
 
 const App = () => {
   return (
@@ -24,6 +25,7 @@ const App = () => {
         <Route path="/instructordashboard" element={<InstructorDashboard />} /> 
         <Route path="/learnerdashboard" element={<LearnerDashboard />} /> 
         <Route path="/managerdashboard" element={<ManagerDashboard />} /> 
+        <Route path="/quiz/:quizId" element={<QuizPage />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
