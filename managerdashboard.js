@@ -1,62 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";  // Import axios
 import "./hrdashboard.css";
 
 const ManagerDashboard = () => {
-  const [showNewCourseForm, setShowNewCourseForm] = useState(false);
-  const [instructors, setInstructors] = useState([]);
+  
   const [showManageCourses, setShowManageCourses] = useState(false);
   const [courses, setCourses] = useState([]);
   const [expandedCourse, setExpandedCourse] = useState(null);
-  const [courseData, setCourseData] = useState({
-    courseId: "",
-    title: "",
-    description: "",
-    instructor: "",
-    startDate: "",
-    duration: "",
-  });
+  const [showTeamDetails, setShowTeamDetails] = useState(false);
+  const [teamDetails, setTeamDetails] = useState({});
+  const [expandedMember, setExpandedMember] = useState(null);
   const navigate = useNavigate(); 
-
-  useEffect(() => {
-    // Fetch instructors when the component mounts
-    axios
-      .get("http://localhost:5000/instructors")
-      .then((response) => {
-        if (response.data.instructors) {
-          setInstructors(response.data.instructors);
-        } else {
-          alert("Failed to load instructors.");
-        }
-      })
-      .catch((error) => console.error("Error fetching instructors:", error));
-  }, []);
-
-  const handleChange = (e) => {
-    setCourseData({ ...courseData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    axios
-      .post("http://localhost:5000/add-course", courseData)
-      .then((response) => {
-        if (response.data.message) {
-          alert(response.data.message);
-          setShowNewCourseForm(false);
-        } else {
-          alert(response.data.error || "Failed to create course.");
-        }
-      })
-      .catch((error) => console.error("Error adding course:", error));
-  };
 
   const handleLogout = () => {
     // Clear the local storage to remove user data
     localStorage.removeItem('jwtToken');
   localStorage.removeItem('roleName');
-
+  localStorage.removeItem("user_id");
   // Optionally notify the backend (if required)
   axios.post('http://localhost:5000/logout')
     .then(response => {
@@ -76,19 +37,30 @@ const ManagerDashboard = () => {
     //  profile redirection functionality here
   };
 
-  const fetchCourses = () => {
+  const fetchCourses =useCallback (() => {
+    const jwtToken = localStorage.getItem("jwtToken");
+
+    if (!jwtToken) {
+      alert("You need to log in to view courses.");
+      navigate("/login", { replace: true });
+      return;
+    }
+
     axios
-      .get("http://localhost:5000/fetch-course")
+      .get("http://localhost:5000/fetch-all-courses", {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`, // Pass token for authorization
+        },
+      })
       .then((response) => {
         console.log("API Response:", response.data.courses); // Debugging
-        
+
         if (response.data.courses && Array.isArray(response.data.courses)) {
-          // Map and format course data
           const formattedCourses = response.data.courses.map((course) => ({
-            id: course.courseId || "N/A", // Ensure this matches the field for course ID
+            id: course.courseId || "N/A",
             title: course.title || "N/A",
             description: course.description || "N/A",
-            instructor: course.instructor || "N/A", // Directly use the instructor field
+            instructor: course.instructor || "N/A",
             startDate: course.startDate || "N/A",
             duration: course.duration || "N/A",
             endDate: course.endDate || "N/A",
@@ -101,15 +73,42 @@ const ManagerDashboard = () => {
       })
       .catch((error) => {
         console.error("Error fetching courses:", error);
+        alert("Unable to fetch courses. Please try again later.");
       });
-  };
+  }, [navigate]);
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [fetchCourses]);
   const toggleCourseDetails = (courseId) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
   };
   
+  const fetchTeamDetails = () => {
+    const managerId = localStorage.getItem("user_id");
+    if (!managerId) {
+      alert("Manager ID not found. Please log in again.");
+      navigate("/login", { replace: true });
+      return;
+    } // Store `managerId` in localStorage during login
+    axios
+      .get(`http://localhost:5000/manager-team/${managerId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+        },
+      })
+      .then((response) => {
+        setTeamDetails(response.data);
+        setShowTeamDetails(true);
+      })
+      .catch((error) => {
+        console.error("Error fetching team details:", error);
+      });
+  };
+
+  const toggleMemberDetails = (memberName) => {
+    setExpandedMember(expandedMember === memberName ? null : memberName);
+  };
+
   const handleDashboardNavigation = () => {
     const userDetails = JSON.parse(localStorage.getItem("userDetails"));
 
@@ -139,6 +138,7 @@ const ManagerDashboard = () => {
     }
   };
 
+
   return (
     <div className="dashboard-container">
       <div className="sidebar">
@@ -163,27 +163,15 @@ const ManagerDashboard = () => {
         <div className="actions-container">
           <h1>Welcome, Manager</h1>
           <div className="actions">
-            <div className="action-item">
-              <div>
-                <h3>Add New Courses</h3>
-                <p>Add new courses for employees.</p>
-              </div>
-              <button onClick={() => setShowNewCourseForm(true)}>ADD</button>
-            </div>
+            
             <div className="action-item">
               <div>
                 <h3>View Progress</h3>
-                <p>View progress of the teams.</p>
+                <p>View progress of the team.</p>
               </div>
-              <button>VIEW</button>
+              <button onClick={fetchTeamDetails}>VIEW</button>
             </div>
-            <div className="action-item">
-              <div>
-                <h3>Assign Members</h3>
-                <p>Assign members to each team.</p>
-              </div>
-              <button>ASSIGN</button>
-            </div>
+            
             <div className="action-item">
               <div>
                 <h3>Manage Courses</h3>
@@ -201,6 +189,74 @@ const ManagerDashboard = () => {
           </div>
         </div>
       </div>
+      {showTeamDetails && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Team: {teamDetails.team_name}</h2>
+            <div className="team-container">
+              {teamDetails.members && teamDetails.members.length > 0 ? (
+                teamDetails.members.map((member) => (
+                  <div key={member.name} className="team-member">
+                    <button
+                      className="member-name"
+                      onClick={() => toggleMemberDetails(member.name)}
+                    >
+                      {member.name}
+                    </button>
+                    {expandedMember === member.name && (
+                      <div className="member-details">
+                        <h3>Course Progress</h3>
+                        {member.course_progress.length > 0 ? (
+                          member.course_progress.map((course, index) => (
+                            <div key={index}>
+                              <p>
+                                <strong>Course:</strong> {course.course_title}
+                              </p>
+                              <p>
+                                <strong>Progress:</strong> {course.progress}%
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p>No course progress available.</p>
+                        )}
+                        <h3>Quiz Results</h3>
+                        {member.quiz_results.length > 0 ? (
+                          member.quiz_results.map((quiz, index) => (
+                            <div key={index}>
+                              <p>
+                                <strong>Quiz Title:</strong> {quiz.quiz_title}
+                              </p>
+                              <p>
+                                <strong>Total Score:</strong> {quiz.total_score}
+                              </p>
+                              <p>
+                                <strong>Pass Status:</strong>{" "}
+                                {quiz.pass_status ? "Passed" : "Failed"}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p>No quiz results available.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p>No team members found.</p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={() => setShowTeamDetails(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
         {/* Modal for managing courses */}
         {showManageCourses && (
@@ -255,86 +311,7 @@ const ManagerDashboard = () => {
         </div>
       )}
 
-      {/* Add New Course Form */}
-      {showNewCourseForm && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>Add New Course</h2>
-            <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Course ID</label>
-              <input
-                type="text"
-                name="courseId"  // Adding the courseId input
-                value={courseData.courseId}
-                onChange={handleChange}
-                placeholder="Enter Course ID"
-                required  // Assuming courseId should be required
-              />
-            </div>
-              <div className="form-group">
-                <label>Title</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={courseData.title}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <input
-                  type="text"
-                  name="description"
-                  value={courseData.description}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Instructor</label>
-                <select
-                  name="instructor"
-                  value={courseData.instructor}
-                  onChange={handleChange}
-                >
-                  <option value="">Select Instructor</option>
-                  {instructors.map((instructor) => (
-                    <option key={instructor.id} value={instructor.id}>
-                      {instructor.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Start Date</label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={courseData.startDate}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Duration (weeks)</label>
-                <input
-                  type="number"
-                  name="duration"
-                  value={courseData.duration}
-                  onChange={handleChange}
-                />
-              </div>
-              <button type="submit" className="submit-btn">Submit</button>
-              <button
-                type="button"
-                className="cancel-btn"
-                onClick={() => setShowNewCourseForm(false)}
-              >
-                Cancel
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 };
