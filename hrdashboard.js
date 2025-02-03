@@ -692,10 +692,10 @@ const fetchCourseLearners = (selectedCourseId) => {
       </div>
 
       {selectedCourseForLearners && learners.length > 0 && (
-        <div>
+        <div className="learner-list">
           <label>Select Learners (2-5):</label>
           {learners.map((learner) => (
-            <div key={learner.id}>
+            <div key={learner.id} className="learner-item">
               <input
                 type="checkbox"
                 id={learner.id}
