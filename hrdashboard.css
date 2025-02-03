@@ -241,4 +241,397 @@
   justify-content: center;
   margin-top: 20px;
 }
+.progress-bar-container {
+  background-color: #f3f3f3;
+  border-radius: 5px;
+  width: 100%;
+  height: 20px;
+  margin: 10px 0;
+  overflow: hidden;
+}
 
+.progress-bar {
+  background-color: #4caf50;
+  height: 100%;
+  text-align: center;
+  line-height: 20px;
+  color: white;
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+/* Popup Overlay */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Dimmed background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensures it appears above other elements */
+}
+
+/* Feedback Popup */
+.feedback-popup {
+  background: white;
+  width: 400px;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+  text-align: center;
+  overflow-y: auto;
+  max-height: 80vh; /* Ensures it doesn’t exceed the viewport height */
+  animation: popup-appear 0.3s ease-in-out; /* Smooth appearance */
+}
+
+/* Popup Form Styles */
+.feedback-popup textarea {
+  width: 100%;
+  height: 100px;
+  padding: 10px;
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  resize: none; /* Prevents resizing */
+  font-size: 14px;
+  outline: none;
+}
+
+.feedback-popup .popup-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.feedback-popup .popup-actions button {
+  background-color: #ffa013;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  flex-grow: 1; /* Makes buttons evenly sized */
+  transition: background-color 0.3s ease;
+}
+
+.feedback-popup .popup-actions button:hover {
+  background-color: #f6fa30;
+  color: black;
+}
+
+/* Animation for Popup Appearance */
+@keyframes popup-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* Global modal styling */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.feedback-popup {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 60%;
+  max-width: 600px;
+  overflow-y: auto;
+}
+
+.feedback-popup h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.feedback-popup button {
+  background-color: #007bff;
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.feedback-popup button:hover {
+  background-color: #0056b3;
+}
+
+.feedback-popup .learner-selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.feedback-popup .learner-item {
+  display: flex;
+  align-items: center;
+}
+
+.feedback-popup .learner-item input {
+  margin-right: 10px;
+}
+
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.popup-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+button {
+  background-color: #007bff;
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+ul li {
+  margin-bottom: 5px;
+}
+
+/* Team Details in Modal */
+.team-card {
+  background-color: #f4f4f4;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.team-card h4 {
+  margin-bottom: 5px;
+}
+
+.team-card p {
+  margin: 5px 0;
+}
+
+.team-card ul {
+  padding-left: 20px;
+}
+
+.team-card ul li {
+  margin-bottom: 5px;
+}
+/* Create Team Modal Styling */
+.create-team-modal {
+  background-color: white;
+  padding: 25px;
+  border-radius: 10px;
+  width: 400px;
+  box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.1);
+}
+
+.create-team-modal h2 {
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.create-team-modal label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.create-team-modal select,
+.create-team-modal input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.create-team-modal input[type="text"] {
+  width: calc(100% - 20px); /* To match the select box styling */
+}
+
+.create-team-modal .popup-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.create-team-modal button {
+  background-color: #28a745;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.create-team-modal button:hover {
+  background-color: #218838;
+}
+
+.create-team-modal .cancel-btn {
+  background-color: #dc3545;
+}
+
+.create-team-modal .cancel-btn:hover {
+  background-color: #c82333;
+}
+/* Teams Popup Modal Styling */
+.teams-popup {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.teams-popup h3 {
+  margin-top: 0;
+}
+
+.team-details {
+  margin-bottom: 20px;
+}
+
+.team-details h4 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.team-details ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.team-details ul li {
+  margin-bottom: 5px;
+}
+
+.popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.popup-actions button {
+  padding: 8px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.popup-actions button:hover {
+  background-color: #0056b3;
+}
+/* Insights Popup */
+.insights-popup {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.insights-popup h3 {
+  margin-top: 0;
+}
+
+.insights-popup ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.insights-popup ul li {
+  margin-bottom: 5px;
+}
+
+/* Create Team Popup */
+.create-team-popup {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 400px;
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.create-team-popup h3 {
+  margin-top: 0;
+}
+
+.create-team-popup .popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.create-team-popup .popup-actions button {
+  padding: 8px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.create-team-popup .popup-actions button:hover {
+  background-color: #0056b3;
+}
+.learner-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.learner-item {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Space between checkbox and text */
+}
+
+.learner-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
