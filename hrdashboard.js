@@ -205,10 +205,8 @@ const toggleLearnerDetails = (learnerId) => {
     });
   };
 
-  const handleProfile = () => {
-    alert("Redirecting to profile...");
-    //  profile redirection functionality here
-  };
+
+
 
   const fetchCourses = () => {
     const token = localStorage.getItem("jwtToken"); 
@@ -530,7 +528,7 @@ const fetchCourseLearners = (selectedCourseId) => {
 
         <div className="top-bar">
           <button className="top-bar-item" onClick={handleLogout}>Logout</button>
-          <button className="top-bar-item" onClick={handleProfile}>Profile</button>
+          <button className="top-bar-item" onClick={() => navigate("/profile")}>Profile</button>
         </div>
 
         {/* Welcome and Actions */}
@@ -771,9 +769,13 @@ const fetchCourseLearners = (selectedCourseId) => {
                         {course.moduleProgress ? (
                           <ul>
                             {Object.entries(course.moduleProgress).map(
-                              ([moduleId, progress]) => (
+                              ([moduleId, progressObj]) => (
                                 <li key={moduleId}>
-                                  Module {moduleId}: {progress}%
+                                  Module {moduleId}: {progressObj.progress}%
+                                  <ul>
+                                    <li>Quiz Progress: {progressObj.quiz_progress}%</li>
+                                    <li>Video Progress: {progressObj.video_progress}%</li>
+                                  </ul>
                                 </li>
                               )
                             )}
