@@ -11,7 +11,7 @@ import "./styles.css";
 import LearnerDashboard from "./learnerdashboard";
 import ManagerDashboard from "./managerdashboard";
 import QuizPage from "./quizpage.js";
-
+import Profile from "./Profile.js";
 const App = () => {
   return (
     <Router>
@@ -26,6 +26,7 @@ const App = () => {
         <Route path="/learnerdashboard" element={<LearnerDashboard />} /> 
         <Route path="/managerdashboard" element={<ManagerDashboard />} /> 
         <Route path="/quiz/:quizId" element={<QuizPage />} />
+        <Route path="/profile" element={<Profile/>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
@@ -33,4 +34,3 @@ const App = () => {
 };
 
 export default App;
-
