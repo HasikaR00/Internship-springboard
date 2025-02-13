@@ -15,8 +15,6 @@ const LearnerDashboard = () => {
   const [enrollForm, setEnrollForm] = useState({ name: "", email: "" });
   const [courseToEnroll, setCourseToEnroll] = useState(null);
   const [feedback, setFeedback] = useState([]);
-  const [watchedProgress, setWatchedProgress] = useState(0);
-  const [quizCompletion, setQuizCompletion] = useState(0);
   const [coursePerformance, setCoursePerformance] = useState([]);
   const navigate = useNavigate();
   const token = localStorage.getItem("jwtToken");
@@ -25,7 +23,8 @@ const LearnerDashboard = () => {
     enrolledCourses: 0,
     inProgressCourses: 0,
   }); // State for bar graph data
-  const youtubePlayerRef = useRef(null);
+  const [progressUpdated, setProgressUpdated] = useState({});
+  const playerRef = useRef({});
   const handleLogout = () => {
     localStorage.removeItem('jwtToken');
     localStorage.removeItem('roleName');
@@ -69,10 +68,11 @@ const LearnerDashboard = () => {
       .then((response) => {
         if (response.data.courses && Array.isArray(response.data.courses)) {
           console.log("Courses fetched:", response.data.courses);
+          console.log("Updated enrolled courses:", response.data.courses);
 
           setEnrolledCourses(response.data.courses.map(course => ({
             ...course,
-            progress: course.progress || 0, 
+            progress: course.courseProgress  || 0, 
           })));
         } else {
           alert("No enrolled courses found.");
@@ -85,14 +85,18 @@ const LearnerDashboard = () => {
   }, [token]);
 
   const fetchCompletedCourses = useCallback(() => {
-    axios.get("http://localhost:5000/fetch-completed-courses",
-      {
+    axios
+      .get("http://localhost:5000/fetch-completed-courses", {
         headers: { Authorization: `Bearer ${token}` },
-      }
-    )
+      })
       .then((response) => {
         if (response.data.courses && Array.isArray(response.data.courses)) {
-          setCompletedCourses(response.data.courses);
+          console.log("Completed Courses fetched:", response.data.courses);
+  
+          setCompletedCourses(response.data.courses.map(course => ({
+            ...course,
+            progress: course.progress || 0, 
+          })));
         } else {
           alert("No completed courses found.");
         }
@@ -102,6 +106,7 @@ const LearnerDashboard = () => {
         alert("Error fetching completed courses.");
       });
   }, [token]);
+  
     // Update module progress
     const fetchProgressOverview = useCallback(() => {
       axios
@@ -115,30 +120,50 @@ const LearnerDashboard = () => {
           console.error("Error fetching progress overview:", error);
         });
     }, [token]);
+    
     const updateModuleProgress = useCallback(
       (moduleId, videoProgress, quizCompletion) => {
+        const validVideoProgress = videoProgress !== null ? Math.round(Math.min(Math.max(videoProgress, 0), 100)) : 0;
+        const validQuizCompletion = quizCompletion !== null ? Math.round(Math.min(Math.max(quizCompletion, 0), 100)) : 0;
+  
+        // Prevent duplicate updates
+        if (
+          progressUpdated[moduleId] &&
+          validVideoProgress <= (progressUpdated[moduleId]?.videoProgress || 0) &&
+          validQuizCompletion <= (progressUpdated[moduleId]?.quizProgress || 0)
+        ) return;
+
+  
         axios
           .post(
             "http://localhost:5000/update-module-progress",
             {
               module_id: moduleId,
-              video_progress: videoProgress,
-              quiz_completion: quizCompletion,
+              video_progress: validVideoProgress,
+              quiz_completion: validQuizCompletion,
             },
             { headers: { Authorization: `Bearer ${token}` } }
           )
           .then((response) => {
-            alert(response.data.message);
+            console.log("Module progress updated:", response.data);
+  
+            // Show alert only once per update
+            setProgressUpdated((prev) => ({
+              ...prev,
+              [moduleId]: { videoProgress: validVideoProgress, quizProgress: validQuizCompletion }
+            }));
             fetchEnrolledCourses();
-            fetchProgressOverview();  // Refresh courses after progress update
+            fetchCompletedCourses(); // Refresh enrolled courses
+            fetchProgressOverview(); // Refresh progress overview
           })
           .catch((error) => {
             console.error("Error updating module progress:", error);
             alert("Error updating module progress.");
           });
       },
-      [token, fetchEnrolledCourses,fetchProgressOverview]
+      [token, fetchEnrolledCourses,fetchCompletedCourses, fetchProgressOverview, progressUpdated]
     );
+  
     
     const fetchFeedback = useCallback(() => {
       axios
@@ -223,47 +248,75 @@ const LearnerDashboard = () => {
       alert("Error enrolling in course.");
     });
   };
-  const handleYouTubeProgress = useCallback((event, moduleId) => {
-    const progress = (event.target.getCurrentTime() / event.target.getDuration()) * 100;
-    let updatedProgress = 0;
+  const getYouTubeVideoId = (url) => {
+    const regex = /(?:youtube\.com(?:[^/]+\/[^/]+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  };
+  
+  
 
-    if (progress >= 0 && progress < 33) updatedProgress = 25;
-    else if (progress >= 33 && progress < 66) updatedProgress = 50;
-    else if (progress >= 66 && progress <= 100) updatedProgress = 70;
-
-    if (updatedProgress !== watchedProgress) {
-      setWatchedProgress(updatedProgress);
-      updateModuleProgress(moduleId, updatedProgress, quizCompletion);
+  // Function to handle YouTube player API
+  const onYouTubeIframeAPIReady = (youtubeLink, moduleId) => {
+    if (!window.YT) {
+      console.error('YouTube API is not loaded');
+      console.log('Module ID:', moduleId);
+      return;
     }
-  }, [watchedProgress, quizCompletion, updateModuleProgress]);
-
-  const handleQuizCompletion = (moduleId, completion) => {
-    setQuizCompletion(completion);
-    updateModuleProgress(moduleId, watchedProgress, completion);
+    
+    const videoId = getYouTubeVideoId(youtubeLink);
+    if (!videoId) {
+      alert("Invalid YouTube link");
+      return;
+    }
+  
+    if (!playerRef.current) {
+      playerRef.current = {}; // Initialize playerRef if it's null
+    }
+  
+    if (!playerRef.current[moduleId]) {
+      playerRef.current[moduleId] = new window.YT.Player(`youtube-player-${moduleId}`, {
+        height: "360",
+        width: "640",
+        videoId: videoId,
+        events: {
+          onStateChange: (event) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              trackVideoProgress(moduleId);
+            }
+            if (event.data === window.YT.PlayerState.ENDED) {
+              updateModuleProgress(moduleId, progressUpdated[moduleId]?.videoProgress || 0, 100); // Ensure video progress reaches 50% at end
+            }
+          },
+        },
+      });
+    }else {
+      console.log(`YouTube player already exists for module ${moduleId}`);
+    }
   };
 
-  useEffect(() => {
-    if (modalType === "enrolled" && courseToEnroll?.modules) {
-      courseToEnroll.modules.forEach((module) => {
-        const videoId = module.youtubeLink.split("v=")[1];
-
-        if (!window.YT) {
-          // Load YouTube API
-          const tag = document.createElement("script");
-          tag.src = "https://www.youtube.com/iframe_api";
-          document.body.appendChild(tag);
-        } else if (!youtubePlayerRef.current) {
-          // Initialize player
-          youtubePlayerRef.current = new window.YT.Player("youtube-player", {
-            videoId,
-            events: {
-              onStateChange: (event) => handleYouTubeProgress(event, module.id),
-            },
-          });
+  // Function to track video progress dynamically
+  const trackVideoProgress = (moduleId) => {
+    let interval = setInterval(() => {
+      if (playerRef.current[moduleId]) {
+        let currentTime = playerRef.current[moduleId].getCurrentTime();
+        let duration = playerRef.current[moduleId].getDuration();
+        let progress = Math.round((currentTime / duration) * 100);
+        if (progress >= 100) {
+          updateModuleProgress(moduleId, 100,  progressUpdated[moduleId]?.quizProgress || 0);
+          clearInterval(interval); // Stop tracking after 100%
+        }else if (progress % 10 === 0) { // Update progress every 10%
+          updateModuleProgress(moduleId, progress, progressUpdated[moduleId]?.quizProgress || 0);
         }
-      });
-    }
-  }, [modalType, courseToEnroll, handleYouTubeProgress]);
+      }
+    }, 5000); // Check progress every 5 seconds
+  };
+
+  const handleQuizCompletion = (moduleId) => {
+    updateModuleProgress(moduleId, 100, 100);
+  };
+
+  
   const renderProgressBar = (progress) => (
     <div className="progress-bar-container">
       <div className="progress-bar" style={{ width: `${progress}%` }}>
@@ -325,9 +378,6 @@ const LearnerDashboard = () => {
       },
     },
   };
- 
-  
-  
   return (
     <div className="dashboard-container">
       <div className="sidebar">
@@ -343,7 +393,7 @@ const LearnerDashboard = () => {
 
         <div className="top-bar">
           <button className="top-bar-item" onClick={handleLogout}>Logout</button>
-          <button className="top-bar-item">Profile</button>
+          <button className="top-bar-item" onClick={() => navigate("/profile")}>Profile</button>
         </div>
 
         <div className="actions-container">
@@ -400,12 +450,22 @@ const LearnerDashboard = () => {
           <p><strong>Start Date:</strong> {course.startDate}</p>
           <p><strong>Duration:</strong> {course.duration} weeks</p>
           {course.endDate && <p><strong>End Date:</strong> {course.endDate}</p>}
-          <p><strong>Progress:</strong> {course.progress}%</p>
-    <div className="progress-bar-container">
-      <div className="progress-bar" style={{ width: `${course.progress}%` }}>
-        {course.progress}%
-      </div>
-    </div>
+          
+          {/* Progress bar should be shown only for enrolled and completed courses */}
+          {(modalType === 'enrolled' || modalType === 'completed') && (
+                    <> {console.log("Course Progress Data:", course.progress)}
+                      <p><strong>Progress:</strong> {modalType === 'completed' ? '100%' : `${course.progress ?? 0}%`}</p>
+
+                      <div className="progress-bar-container">
+                        <div
+                          className="progress-bar"
+                          style={{ width: modalType === 'completed' ? '100%' : `${course.progress ?? 0}%` }}
+                        >
+                          {modalType === 'completed' ? '100%' : `${course.progress ?? 0}%`}
+                        </div>
+                      </div>
+                    </>
+          )}
           {modalType === "courses" &&
                         !enrolledCourses.some((e) => e.id === course.id) && (
                           <button
@@ -421,13 +481,13 @@ const LearnerDashboard = () => {
                       <h4>{module.title}</h4>
                       <p><strong>Introduction:</strong> {module.introduction}</p>
                       <p><strong>Learning Points:</strong> {module.points}</p>
-                      <p><strong>Progress:</strong> {module.progress}%</p>
+                      <p><strong>Progress:</strong> {module.progress?.progress ?? 0}%</p>
                       <div>
                         {module.pdfLink && (
                           <p>
                             <strong>Material:</strong>{" "}
                             <a href={module.pdfLink} target="_blank" rel="noopener noreferrer">
-                              Download PDF
+                              View PDF
                             </a>
                           </p>
                         )}
@@ -435,22 +495,21 @@ const LearnerDashboard = () => {
                       {/* YouTube Video Player */}
                       {module.youtubeLink && (
                         <div>
-                          <div id="youtube-player"></div>
-                          <p>
-                            <a href={module.youtubeLink} target="_blank" rel="noopener noreferrer">
-                              Watch on YouTube
-                            </a>
-                          </p>
-                        </div>
+                        <div id={`youtube-player-${module.moduleId}`}></div>
+                        <button onClick={() => onYouTubeIframeAPIReady(module.youtubeLink, module.moduleId)}>
+                          Load Video
+                        </button>
+                      </div>
                       )}
                        {/* "Take Quiz" Button */}
                        {module.quizId && enrolledCourses.some((e) => e.id === course.id) && (
       <button 
         onClick={() => {
           navigate(`/quiz/${module.quizId}`);
-          handleQuizCompletion(module.moduleId, 50);
+          handleQuizCompletion(module.moduleId);
         }} 
         className="take-quiz-button"
+         
       >
         TAKE QUIZ
       </button>
