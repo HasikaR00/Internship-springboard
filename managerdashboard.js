@@ -32,11 +32,6 @@ const ManagerDashboard = () => {
     });
   };
 
-  const handleProfile = () => {
-    alert("Redirecting to profile...");
-    //  profile redirection functionality here
-  };
-
   const fetchCourses =useCallback (() => {
     const jwtToken = localStorage.getItem("jwtToken");
 
@@ -156,7 +151,7 @@ const ManagerDashboard = () => {
 
         <div className="top-bar">
           <button className="top-bar-item" onClick={handleLogout}>Logout</button>
-          <button className="top-bar-item" onClick={handleProfile}>Profile</button>
+          <button className="top-bar-item" onClick={() => navigate("/profile")}>Profile</button>
         </div>
 
         {/* Welcome and Actions */}
@@ -178,13 +173,6 @@ const ManagerDashboard = () => {
                 <p>Manage available courses.</p>
               </div>
               <button onClick={fetchCourses}>MANAGE</button>
-            </div>
-            <div className="action-item">
-              <div>
-                <h3>View Teams</h3>
-                <p>View team details.</p>
-              </div>
-              <button>VIEW</button>
             </div>
           </div>
         </div>
