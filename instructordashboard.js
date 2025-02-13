@@ -176,13 +176,6 @@ const InstructorDashboard = () => {
       navigate('/login', { replace: true });
     });
   };
-
-  const handleProfile = () => {
-    alert("Redirecting to profile...");
-    //  profile redirection functionality here
-  };
-
-
   const fetchCourses = () => {
     const token = localStorage.getItem("jwtToken"); 
     axios
@@ -334,7 +327,7 @@ const InstructorDashboard = () => {
 
         <div className="top-bar">
           <button className="top-bar-item" onClick={handleLogout}>Logout</button>
-          <button className="top-bar-item" onClick={handleProfile}>Profile</button>
+          <button className="top-bar-item" onClick={() => navigate("/profile")}>Profile</button>
         </div>
 
         {/* Welcome and Actions */}
