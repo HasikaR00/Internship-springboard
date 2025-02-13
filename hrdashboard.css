@@ -1,21 +1,25 @@
 /* Global Styles */
 *
+*
 {
   background-color:transparent;
 }
+
 /* Dashboard Layout */
 .dashboard-container {
   display: flex;
-  height: 100vh;
+  align-items:stretch;
+  min-height: 100vh;
 }
 
 .sidebar {
-  background-color: #800020;
+  background-color:#1F4D30;
   width: 200px;
   display: flex;
   flex-direction: column;
   padding: 20px;
   color: black;
+  min-height: 100%; 
 }
 
 .sidebar h3 {
@@ -83,10 +87,11 @@
 
 /* Actions Section */
 .actions-container {
-  background: white;
+  background:#E5FCC8;
   margin: 20px;
   padding: 20px;
   border-radius: 8px;
+  flex-grow: 1; 
 }
 
 .actions {
@@ -98,7 +103,7 @@
 .action-item {
   display: flex;
   justify-content: space-between;
-  background: #e5fcc8;
+  background:#A8DBA8;
   padding: 15px;
   border-radius: 8px;
   width: 800px;
@@ -112,7 +117,7 @@
   cursor: pointer;
   width: 90px;
   height: 70px;
-  border-radius: 3px;
+  border-radius: 10px;
 }
 
 .action-item button:hover {
@@ -131,21 +136,31 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow-y: auto;
 }
 
 .modal-content {
   background: white;
   padding: 20px;
   border-radius: 8px;
-  width: 400px;
+  width: 90%;
+  max-width: 800px;  /* Set a maximum width */
   text-align: center;
+  overflow-y: auto;
+  max-height: 80vh;
+  margin: 0 auto; 
 }
-
+#youtube-player {
+  width: 100%;  /* Make the YouTube player take the full width of its container */
+  height: 100%; /* Set the height to fill the modal */
+  max-height: 500px;  /* Optional: Add a max height to prevent the video from becoming too tall */
+}
 /* Form Styles */
 .course-form {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  overflow-y: auto;
 }
 
 .form-input {
@@ -175,7 +190,10 @@
   background-color: #f6fa30;
   color: black;
 }
-
+.form-group
+{
+  overflow-y: auto;
+}
 /* Course List */
 .course-list {
   max-height: 800px;
@@ -634,4 +652,142 @@ ul li {
 .learner-item input[type="checkbox"] {
   width: 16px;
   height: 16px;
+}
+@media screen and (max-width: 1199px) {
+  .action-item {
+    width: 700px;
+  }
+
+  .course-list {
+    max-width: 700px;
+  }
+
+  .modal-content {
+    max-width: 700px;
+  }
+}
+@media screen and (max-width: 991px) {
+  .dashboard-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+  }
+
+  .top-bar {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .action-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+
+  .action-item button {
+    width: 100%;
+  }
+
+  .modal-content {
+    max-width: 90%;
+  }
+}
+@media screen and (max-width: 575px) {
+  .dashboard-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 5px;
+  }
+
+  .sidebar li {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .top-bar {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .action-item {
+    flex-direction: column;
+    width: 100%;
+    padding: 10px;
+  }
+
+  .action-item button {
+    width: 100%;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: 400px;
+  }
+
+  .feedback-popup {
+    width: 90%;
+  }
+
+  .team-card {
+    width: 100%;
+  }
+
+  .create-team-modal {
+    width: 90%;
+  }
+}
+
+/* Mobile View: Adjust layout for screens smaller than 768px */
+@media screen and (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .sidebar ul {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .sidebar li {
+    width: 48%; /* Adjust for better alignment */
+  }
+
+  .main-content {
+    padding: 10px;
+  }
+
+  .top-bar {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .action-item {
+    flex-direction: column;
+    width: 100%;
+    align-items: center;
+  }
+
+  .modal-content {
+    width: 90%;
+    max-width: 500px;
+  }
+
+  .feedback-popup {
+    width: 90%;
+  }
 }
