@@ -12,7 +12,7 @@ from datetime import timedelta
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity,get_jwt
 from flask_bcrypt import Bcrypt
 import logging
-
+import json
 # Set session duration
 
 app = Flask(__name__)
@@ -722,21 +722,32 @@ def fetch_enrolled_courses():
         enrollments = Enrollment.query.filter_by(user_id=current_user_id).join(Course).all()
 
         if not enrollments:
-            return jsonify({"message": "No enrolled courses found."}), 404
+            return jsonify({"message": "No enrolled courses found."}), 200  # Return empty list instead of 404
 
         courses_list = []
         for enrollment in enrollments:
             course = enrollment.course
+            course_progress = enrollment.progress if enrollment.progress is not None else 0.0
+
+            # Exclude fully completed courses
+            if course_progress >= 100:
+                continue
+
+            # Ensure module progress is a dictionary
+            module_progress_data = enrollment.module_progress
+            if isinstance(module_progress_data, str):
+                module_progress_data = json.loads(module_progress_data)
+
             modules = Module.query.filter_by(course_id=course.id).all()
-            module_progress_data = enrollment.module_progress or {}
             module_list = []
             for module in modules:
                 quiz_id = None
                 quiz = Quiz.query.filter_by(module_id=module.id).first()
                 if quiz:
                     quiz_id = quiz.id
-                
-                module_progress = module_progress_data.get(str(module.id), 0)
+
+                module_progress = module_progress_data.get(str(module.id), {}).get("progress", 0)
+
                 module_list.append({
                     "moduleId": module.id,
                     "title": module.title,
@@ -745,29 +756,27 @@ def fetch_enrolled_courses():
                     "youtubeLink": module.youtube_link,
                     "pdfLink": module.pdf_link,
                     "progress": module_progress,
-                    "quizId": quiz_id 
-                    
+                    "quizId": quiz_id
                 })
 
             courses_list.append({
                 "id": course.id,
-                "courseId": course.course_id,
+                "courseId": course.id,
                 "title": course.title,
                 "description": course.description,
                 "instructor": course.instructor.full_name,
                 "startDate": course.start_date.strftime("%Y-%m-%d"),
                 "endDate": course.end_date.strftime("%Y-%m-%d"),
                 "duration": course.duration,
-                
+                "courseProgress": course_progress,
                 "modules": module_list
             })
-
 
         return jsonify({"courses": courses_list}), 200
 
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-    
+
 @app.route('/fetch-quiz-for-module/<int:module_id>', methods=['GET'])
 @jwt_required()
 def fetch_quiz_for_module(module_id):
@@ -922,30 +931,59 @@ def view_quiz_results(quiz_id):
 def fetch_completed_courses():
     try:
         current_user_id = get_jwt_identity()
-        enrollments = Enrollment.query.filter_by(user_id=current_user_id, progress=100).all()
+        enrollments = Enrollment.query.filter_by(user_id=current_user_id).join(Course).filter(Enrollment.progress == 100).all()
 
         if not enrollments:
-            return jsonify({"message": "No completed courses found."}), 404
+            return jsonify({"message": "No completed courses found."}), 200  # Return empty list instead of 404
 
-        completed_courses = [
-            {
-                "id": enrollment.course.id,
-                "courseId": enrollment.course.course_id,
-                "title": enrollment.course.title,
-                "description": enrollment.course.description,
-                "instructor": enrollment.course.instructor.full_name if enrollment.course.instructor else "N/A",
-                "startDate": enrollment.course.start_date.strftime("%Y-%m-%d"),
-                "endDate": enrollment.course.end_date.strftime("%Y-%m-%d"),
-                "duration": enrollment.course.duration,
-                "youtubeLink": enrollment.course.youtube_link or"N/A",
-            }
-            for enrollment in enrollments
-        ]
-        return jsonify({"courses": completed_courses}), 200
+        completed_courses_list = []
+        for enrollment in enrollments:
+            course = enrollment.course
+
+            # Ensure module progress is a dictionary
+            module_progress_data = enrollment.module_progress
+            if isinstance(module_progress_data, str):
+                module_progress_data = json.loads(module_progress_data)
+
+            modules = Module.query.filter_by(course_id=course.id).all()
+            module_list = []
+            for module in modules:
+                quiz_id = None
+                quiz = Quiz.query.filter_by(module_id=module.id).first()
+                if quiz:
+                    quiz_id = quiz.id
+
+                module_progress = module_progress_data.get(str(module.id), {}).get("progress", 0)
+
+                module_list.append({
+                    "moduleId": module.id,
+                    "title": module.title,
+                    "introduction": module.introduction,
+                    "points": module.points,
+                    "youtubeLink": module.youtube_link,
+                    "pdfLink": module.pdf_link,
+                    "progress": module_progress,
+                    "quizId": quiz_id
+                })
+
+            completed_courses_list.append({
+                "id": course.id,
+                "courseId": course.id,
+                "title": course.title,
+                "description": course.description,
+                "instructor": course.instructor.full_name,
+                "startDate": course.start_date.strftime("%Y-%m-%d"),
+                "endDate": course.end_date.strftime("%Y-%m-%d"),
+                "duration": course.duration,
+                "courseProgress": 100,  # Completed courses always 100%
+                "modules": module_list
+            })
+
+        return jsonify({"courses": completed_courses_list}), 200
+
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-    
+   
 @app.route('/enroll-course', methods=['POST'])
 
 def enroll_course():
@@ -999,38 +1037,58 @@ def refresh():
     access_token = create_access_token(identity=current_user_id)
     return jsonify({"access_token": access_token}), 200
 
-#course-progress
 def calculate_course_progress(course_id, user_id):
-    course = Course.query.get(course_id)
+    course = db.session.get(Course, course_id)
     if not course:
         raise ValueError("Course not found")
-    
+
+    # Fetch all modules for the course
     modules = Module.query.filter_by(course_id=course_id).all()
-    if not modules:
-        return 0.0
+    total_modules = len(modules)
+
+    if total_modules == 0:
+        return 0.0  # No modules, progress should be 0
 
     enrollment = Enrollment.query.filter_by(user_id=user_id, course_id=course_id).first()
     if not enrollment:
         raise ValueError("Enrollment not found")
-    
-    module_progress_data = enrollment.module_progress or {}
+
+    # ✅ Ensure module_progress is always a valid dictionary
+    module_progress_data = enrollment.module_progress
+    if isinstance(module_progress_data, str):
+        module_progress_data = json.loads(module_progress_data)  # Convert JSON string to dictionary
+    elif not isinstance(module_progress_data, dict):
+        module_progress_data = {}
+
+    print(f"Total Modules Found: {total_modules}")
+
     total_progress = 0.0
-    count = 0
+    counted_modules = 0  
 
     for module in modules:
-        progress = module_progress_data.get(str(module.id), 0)
-        total_progress += progress
-        count += 1
-    
-    if count == 1:
-        course_progress = total_progress
-    else:
-        course_progress = (total_progress / count) if count > 0 else 0.0
+        module_id_str = str(module.id)
+        module_progress_entry = module_progress_data.get(module_id_str, {"video_progress": 0, "quiz_progress": 0, "progress": 0.0})
+
+        print(f"Module ID: {module.id}, Stored Progress: {module_progress_entry}")
+
+        module_progress = module_progress_entry.get("progress", 0)
+        total_progress += module_progress
+        counted_modules += 1
+
+    if counted_modules == 0:
+        return 0.0
+
+    # ✅ Properly update course progress calculation
+    course_progress = round(total_progress / counted_modules, 2)
+
+    print(f"Final Course Progress: {course_progress}")
+
     enrollment.progress = course_progress
     db.session.commit()
 
     return course_progress
-#module-progress
+
+
 @app.route('/update-module-progress', methods=['POST'])
 @jwt_required()
 def update_module_progress():
@@ -1038,13 +1096,15 @@ def update_module_progress():
         data = request.json
         user_id = get_jwt_identity()
         module_id = data.get('module_id')
-        video_progress = data.get('video_progress', 0)  # Video progress (0-100)
-        quiz_completion = data.get('quiz_completion', 0)  # Quiz completion percentage (0-100)
+        video_progress = data.get('video_progress', 0)
+        quiz_completion = data.get('quiz_completion', 0)
 
-        if not module_id or (video_progress is None and quiz_completion is None):
-            return jsonify({"error": "Invalid data"}), 400
+        print(f"Received: Module {module_id}, Video {video_progress}, Quiz {quiz_completion}")
 
-        module = Module.query.get(module_id)
+        if not module_id:
+            return jsonify({"error": "Invalid module ID"}), 400
+
+        module = db.session.get(Module, module_id)
         if not module:
             return jsonify({"error": "Module not found"}), 404
 
@@ -1052,25 +1112,57 @@ def update_module_progress():
         if not enrollment:
             return jsonify({"error": "Enrollment not found"}), 404
 
-        video_progress = video_progress if video_progress is not None else 0
-        quiz_completion = quiz_completion if quiz_completion is not None else 0
-        # Calculate module progress as a weighted average (50% video, 50% quizzes)
-        module_progress = (video_progress * 0.5) + (quiz_completion * 0.5)
-        module_progress_data = enrollment.module_progress or {}
-        module_progress_data[str(module_id)] = module_progress
+        # ✅ Ensure module_progress is always a valid dictionary
+        module_progress_data = enrollment.module_progress
+        if isinstance(module_progress_data, str):
+            module_progress_data = json.loads(module_progress_data)  # Convert JSON string to dictionary
+        elif not isinstance(module_progress_data, dict):
+            module_progress_data = {}
 
-        enrollment.module_progress = module_progress_data
+        previous_progress_entry = module_progress_data.get(str(module_id), {"video_progress": 0, "quiz_progress": 0, "progress": 0.0})
+
+        previous_video_progress = previous_progress_entry.get("video_progress", 0)
+        previous_quiz_progress = previous_progress_entry.get("quiz_progress", 0)
+
+        # ✅ Normalize values
+        video_progress = min(max(video_progress, 0), 100) if video_progress is not None else 0
+        quiz_completion = min(max(quiz_completion, 0), 100) if quiz_completion is not None else 0
+
+        # ✅ Update progress correctly
+        updated_video_progress = max(previous_video_progress, video_progress) if video_progress else previous_video_progress
+        updated_quiz_progress = max(previous_quiz_progress, quiz_completion)  if quiz_completion else previous_quiz_progress
+
+        # ✅ Correct module progress calculation
+        new_module_progress = round((updated_video_progress + updated_quiz_progress) / 2.0, 2)
+
+        print(f"Updated Video: {updated_video_progress}, Quiz: {updated_quiz_progress}, Progress: {new_module_progress}")
+
+        # ✅ Save updated progress
+        module_progress_data[str(module_id)] = {
+            "video_progress": updated_video_progress,
+            "quiz_progress": updated_quiz_progress,
+            "progress": new_module_progress
+        }
+
+        # ✅ Update the database with the latest progress
+        enrollment.module_progress = json.dumps(module_progress_data)  # Ensure JSON format
         db.session.commit()
-         #Recalculate and update course progress
+        db.session.refresh(enrollment)  
+
+        # ✅ Recalculate course progress using the UPDATED enrollment object
         course_progress = calculate_course_progress(module.course_id, user_id)
+        db.session.refresh(enrollment)
+        print(f"Final Module Progress: {new_module_progress}, Course Progress: {course_progress}")
+
         return jsonify({
             "message": "Module progress updated successfully",
-            "moduleProgress": module_progress,
+            "moduleProgress": new_module_progress,
             "courseProgress": course_progress
         }), 200
 
     except Exception as e:
         db.session.rollback()
+        print("Error:", str(e))
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 #fetch-all-courses
@@ -1449,22 +1541,24 @@ def course_progress_overview():
 def course_performance():
     try:
         current_user_id = get_jwt_identity()
-
-        # Fetch enrollments
         enrollments = Enrollment.query.filter_by(user_id=current_user_id).all()
+
         if not enrollments:
-            return jsonify({"message": "No enrolled courses found."}), 404
+            return jsonify({"message": "No enrolled courses found."}), 200  # Return empty list instead of 404
 
         course_performance_data = []
         for enrollment in enrollments:
             course = enrollment.course
-            progress = enrollment.progress
+            progress = enrollment.progress or 0
             status = "Completed" if progress == 100 else "Active" if progress > 0 else "Not Started"
 
-            # Gather module-level data
-            module_progress_data = enrollment.module_progress or {}
+            # Ensure module progress is parsed properly
+            module_progress_data = enrollment.module_progress
+            if isinstance(module_progress_data, str):
+                module_progress_data = json.loads(module_progress_data)
+
             total_modules = Module.query.filter_by(course_id=course.id).count()
-            completed_modules = sum(1 for _, progress in module_progress_data.items() if progress == 100)
+            completed_modules = sum(1 for mod in module_progress_data.values() if mod.get("progress", 0) == 100)
 
             # Gather quiz performance
             total_points = 0
@@ -1474,8 +1568,8 @@ def course_performance():
             for quiz in quizzes:
                 attempt = QuizAttempt.query.filter_by(user_id=current_user_id, quiz_id=quiz.id).first()
                 if attempt:
-                    total_points += quiz.pass_score
-                    achieved_points += attempt.correct_answers
+                    total_points += quiz.pass_score or 0
+                    achieved_points += attempt.correct_answers or 0
 
             course_performance_data.append({
                 "courseId": course.id,
@@ -1493,6 +1587,8 @@ def course_performance():
     except Exception as e:
         logging.error(f"Error fetching course performance: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
+
+
 #hr-routes
 @app.route('/teams', methods=['GET'])
 @jwt_required()
@@ -1675,6 +1771,33 @@ def get_manager_team(manager_id):
         })
 
     return jsonify({"team_name": team.name, "members": members}), 200
+#profile-details
+@app.route('/fetch-profile', methods=['GET'])
+@jwt_required()
+def fetch_profile():
+    try:
+        current_user_id = get_jwt_identity()  # Get user ID from JWT
+        user = User.query.get(current_user_id)
+
+        if not user:
+            return jsonify({"error": "User not found."}), 404
+
+        # Fetch role name
+        role = Role.query.get(user.role_id)
+        role_name = role.name if role else "Unknown"
+
+        user_data = {
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "country": user.country,
+            "role": role_name
+        }
+
+        return jsonify({"profile": user_data}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
 
